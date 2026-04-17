@@ -1,0 +1,27 @@
+{
+  "name": "aegishub",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "aegishub": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "lint": "eslint src --ext .ts",
+    "scan": "pnpm build && node dist/index.js scan",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "chalk": "^5.4.1",
+    "commander": "^13.0.0",
+    "ora": "^8.1.1"
+  },
+  "devDependencies": {
+    "execa": "^9.5.2",
+    "tsx": "^4.19.2",
+    "tsup": "^8.3.5",
+    "vitest": "^2.1.8"
+  }
+}

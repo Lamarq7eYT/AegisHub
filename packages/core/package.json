@@ -1,0 +1,11 @@
+{
+  "name": "@aegishub/core",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "cargo build --release",
+    "lint": "cargo fmt --check && cargo clippy --all-targets --all-features -- -D warnings",
+    "test": "cargo test",
+    "typecheck": "cargo check --all-targets --all-features"
+  }
+}

@@ -1,0 +1,32 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: cargo test --manifest-path packages/core/Cargo.toml
+      - run: pnpm test
+      - run: pnpm build
+      - run: cargo build --manifest-path packages/core/Cargo.toml --release
+      - run: wasm-pack build packages/core --target web
+      - run: pnpm publish -r --access public
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: packages/core/target/release/*

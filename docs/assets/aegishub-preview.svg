@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="840" viewBox="0 0 1400 840" role="img" aria-labelledby="title desc">
+  <title id="title">AegisHub dashboard preview</title>
+  <desc id="desc">A polished security scan dashboard with score, charts, findings, and pull request comment preview.</desc>
+  <rect width="1400" height="840" fill="#f4f6f8"/>
+  <rect x="34" y="34" width="1332" height="170" rx="8" fill="#ffffff" stroke="#d9dee7"/>
+  <rect x="34" y="34" width="480" height="170" rx="8" fill="#ecfdf5" opacity="0.8"/>
+  <path d="M76 76 55 85v32c0 26 15 48 38 60 23-12 38-34 38-60V85l-55-9Z" fill="none" stroke="#0f766e" stroke-width="7" stroke-linejoin="round"/>
+  <path d="m68 124 15 15 33-41" fill="none" stroke="#0f766e" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="154" y="86" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800" fill="#115e59">AEGISHUB SECURITY REPORT</text>
+  <text x="154" y="139" font-family="Inter, Arial, sans-serif" font-size="64" font-weight="900" fill="#111827">octo-store/payments</text>
+  <text x="156" y="174" font-family="Inter, Arial, sans-serif" font-size="22" fill="#475569">PR scan for feature/secure-checkout at commit 8f31c2a</text>
+  <rect x="1054" y="84" width="128" height="46" rx="23" fill="#ffffff" stroke="#d9dee7"/>
+  <circle cx="1080" cy="107" r="6" fill="#16a34a"/>
+  <text x="1096" y="114" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800" fill="#334155">Completed</text>
+  <rect x="1200" y="84" width="122" height="46" rx="8" fill="#0f766e"/>
+  <path d="M1223 98v18l15-9-15-9Z" fill="#ffffff"/>
+  <text x="1248" y="113" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800" fill="#ffffff">Run scan</text>
+
+  <rect x="34" y="224" width="410" height="170" rx="8" fill="#ffffff" stroke="#d9dee7"/>
+  <circle cx="128" cy="309" r="58" fill="none" stroke="#e5e7eb" stroke-width="14"/>
+  <path d="M128 251a58 58 0 1 1-57 69" fill="none" stroke="#0f766e" stroke-width="14" stroke-linecap="round"/>
+  <text x="96" y="324" font-family="Inter, Arial, sans-serif" font-size="42" font-weight="900" fill="#111827">74</text>
+  <text x="220" y="282" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="800" fill="#64748b">Security score</text>
+  <text x="220" y="326" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="900" fill="#111827">74/100</text>
+  <text x="220" y="360" font-family="Inter, Arial, sans-serif" font-size="16" fill="#475569">Current PR status: passing</text>
+
+  <g font-family="Inter, Arial, sans-serif">
+    <rect x="460" y="224" width="205" height="170" rx="8" fill="#ffffff" stroke="#d9dee7"/>
+    <text x="484" y="286" font-size="17" font-weight="800" fill="#64748b">Files scanned</text>
+    <text x="484" y="337" font-size="38" font-weight="900" fill="#111827">142</text>
+    <rect x="681" y="224" width="205" height="170" rx="8" fill="#ffffff" stroke="#d9dee7"/>
+    <text x="705" y="286" font-size="17" font-weight="800" fill="#64748b">Lines scanned</text>
+    <text x="705" y="337" font-size="38" font-weight="900" fill="#111827">18,430</text>
+    <rect x="902" y="224" width="205" height="170" rx="8" fill="#ffffff" stroke="#d9dee7"/>
+    <text x="926" y="286" font-size="17" font-weight="800" fill="#64748b">Findings</text>
+    <text x="926" y="337" font-size="38" font-weight="900" fill="#111827">6</text>
+    <rect x="1123" y="224" width="243" height="170" rx="8" fill="#ffffff" stroke="#d9dee7"/>
+    <text x="1147" y="286" font-size="17" font-weight="800" fill="#64748b">Duration</text>
+    <text x="1147" y="337" font-size="38" font-weight="900" fill="#111827">312 ms</text>
+  </g>
+
+  <rect x="34" y="414" width="655" height="260" rx="8" fill="#ffffff" stroke="#d9dee7"/>
+  <text x="58" y="455" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="900" fill="#111827">Findings by severity</text>
+  <line x1="92" y1="626" x2="625" y2="626" stroke="#e5e7eb" stroke-width="2"/>
+  <rect x="112" y="523" width="58" height="103" rx="6" fill="#dc2626"/>
+  <rect x="222" y="477" width="58" height="149" rx="6" fill="#d97706"/>
+  <rect x="332" y="477" width="58" height="149" rx="6" fill="#0891b2"/>
+  <rect x="442" y="575" width="58" height="51" rx="6" fill="#6b7280"/>
+  <rect x="552" y="626" width="58" height="0" rx="6" fill="#475569"/>
+  <text x="101" y="653" font-family="Inter, Arial, sans-serif" font-size="15" fill="#64748b">Critical</text>
+  <text x="235" y="653" font-family="Inter, Arial, sans-serif" font-size="15" fill="#64748b">High</text>
+  <text x="329" y="653" font-family="Inter, Arial, sans-serif" font-size="15" fill="#64748b">Medium</text>
+  <text x="458" y="653" font-family="Inter, Arial, sans-serif" font-size="15" fill="#64748b">Low</text>
+
+  <rect x="711" y="414" width="655" height="260" rx="8" fill="#ffffff" stroke="#d9dee7"/>
+  <text x="735" y="455" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="900" fill="#111827">Pull request comment</text>
+  <rect x="735" y="480" width="604" height="162" rx="8" fill="#fbfdff" stroke="#d1d5db"/>
+  <text x="759" y="514" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="900" fill="#111827">AegisHub Security Report - Score: 74/100</text>
+  <rect x="759" y="536" width="260" height="31" fill="#f8fafc" stroke="#e5e7eb"/>
+  <rect x="759" y="567" width="260" height="31" fill="#ffffff" stroke="#e5e7eb"/>
+  <rect x="759" y="598" width="260" height="31" fill="#ffffff" stroke="#e5e7eb"/>
+  <text x="775" y="558" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="800" fill="#475569">Severity</text>
+  <text x="938" y="558" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="800" fill="#475569">Count</text>
+  <text x="775" y="589" font-family="Inter, Arial, sans-serif" font-size="14" fill="#111827">Critical</text>
+  <text x="958" y="589" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="900" fill="#111827">1</text>
+  <text x="775" y="620" font-family="Inter, Arial, sans-serif" font-size="14" fill="#111827">High</text>
+  <text x="958" y="620" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="900" fill="#111827">2</text>
+  <text x="1060" y="558" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="900" fill="#dc2626">[Critical] Hardcoded AWS access key</text>
+  <text x="1060" y="584" font-family="Inter, Arial, sans-serif" font-size="14" fill="#64748b">src/config/payments.ts, line 14</text>
+  <text x="1060" y="610" font-family="Inter, Arial, sans-serif" font-size="14" fill="#334155">Rotate key and load credentials from secrets.</text>
+
+  <rect x="34" y="694" width="1332" height="112" rx="8" fill="#ffffff" stroke="#d9dee7"/>
+  <text x="58" y="735" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="900" fill="#111827">Findings</text>
+  <rect x="58" y="752" width="1254" height="34" rx="8" fill="#f8fafc"/>
+  <text x="80" y="775" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="800" fill="#dc2626">Critical</text>
+  <text x="205" y="775" font-family="Inter, Arial, sans-serif" font-size="14" fill="#334155">secret.aws.access_key</text>
+  <text x="414" y="775" font-family="Inter, Arial, sans-serif" font-size="14" fill="#334155">src/config/payments.ts:14</text>
+  <text x="672" y="775" font-family="Inter, Arial, sans-serif" font-size="14" fill="#334155">Hardcoded AWS access key detected</text>
+  <rect x="1210" y="759" width="80" height="22" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1225" y="775" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="800" fill="#111827">AI fix</text>
+</svg>
