@@ -24,6 +24,6 @@ jobs:
       - run: cargo test --manifest-path packages/core/Cargo.toml
       - run: pnpm test
       - run: pnpm build
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v6
         with:
           fail_ci_if_error: false
