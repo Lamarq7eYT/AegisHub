@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Private vulnerability report
+    url: https://github.com/Lamarq7eYT/AegisHub/security/advisories/new
+    about: Please report suspected vulnerabilities privately instead of opening a public issue.
