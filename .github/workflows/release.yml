@@ -27,6 +27,6 @@ jobs:
       - run: cargo build --manifest-path packages/core/Cargo.toml --release
       - run: wasm-pack build packages/core --target web
       - run: pnpm publish -r --access public
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: packages/core/target/release/*
