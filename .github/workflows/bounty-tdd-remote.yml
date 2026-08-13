@@ -28,6 +28,9 @@ jobs:
       - name: Test bounty core
         if: ${{ hashFiles('packages/bounty-core/package.json') != '' }}
         run: pnpm --filter @aegishub/bounty-core test
+      - name: Build bounty core
+        if: ${{ hashFiles('packages/bounty-core/package.json') != '' }}
+        run: pnpm --filter @aegishub/bounty-core build
       - name: Test bounty runtime
         if: ${{ hashFiles('packages/bounty-runtime/package.json') != '' }}
         run: pnpm --filter @aegishub/bounty-runtime test
