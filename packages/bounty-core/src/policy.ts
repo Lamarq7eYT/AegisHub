@@ -226,6 +226,7 @@ export function parsePolicyGateInput(input: unknown): PolicyGateInput {
     !isPolicyState(status.state) ||
     !isValidDate(status.checkedAt) ||
     !isPlainArray(status.sourceResults) ||
+    typeof mutationCount !== 'number' ||
     !Number.isSafeInteger(mutationCount) ||
     mutationCount < 0 ||
     !isNonEmptyStringArray(targets) ||
@@ -382,11 +383,15 @@ function isPolicyOperationClassification(value: unknown): value is PolicyOperati
   return typeof value === 'string' && policyOperationClassifications.has(value);
 }
 
-const policyOperationClassifications = new Set<PolicyOperationClassification>([
+const policyOperationClassificationValues = [
   'repository-read-boundary',
   'repository-mutation-boundary',
   ...fixedPolicyEnforcement.forbiddenOperationFamilies
-]);
+] as const satisfies readonly PolicyOperationClassification[];
+
+const policyOperationClassifications: ReadonlySet<string> = new Set(
+  policyOperationClassificationValues
+);
 
 function isPolicyState(value: unknown): value is PolicyState {
   return value === 'current' || value === 'fresh-unverified' || value === 'stale' || value === 'review-required';
