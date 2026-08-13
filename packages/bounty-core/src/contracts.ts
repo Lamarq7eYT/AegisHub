@@ -210,11 +210,30 @@ export const policySnapshotSchema = z
 export const policySourceStatusSchema = z
   .object({
     sourceId: nonEmptyStringSchema,
-    state: z.enum(['match', 'changed', 'unavailable']),
+    state: z.enum(['match', 'changed', 'unavailable', 'malformed']),
     checkedAt: timestampSchema,
-    observedSha256: sha256Schema.optional()
+    observedSha256: sha256Schema.optional(),
+    malformedReason: z
+      .enum(['missing-main', 'empty-normalized-content', 'invalid-normalized-content'])
+      .optional()
   })
-  .strict();
+  .strict()
+  .superRefine((status, context) => {
+    if (status.state === 'malformed' && status.malformedReason === undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Malformed policy sources require a malformedReason',
+        path: ['malformedReason']
+      });
+    }
+    if (status.state !== 'malformed' && status.malformedReason !== undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Only malformed policy sources may have a malformedReason',
+        path: ['malformedReason']
+      });
+    }
+  });
 
 export const policyStatusSchema = z
   .object({

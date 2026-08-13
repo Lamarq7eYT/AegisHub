@@ -11,6 +11,7 @@ import {
   labManifestSchema,
   labRepositorySchema,
   observationSchema,
+  policySourceStatusSchema,
   policySnapshotSchema,
   repositoryMarkerSchema
 } from '../src/contracts.js';
@@ -255,6 +256,32 @@ describe('labManifestSchema', () => {
     expect(candidateSchema.safeParse({ ...validCandidate, unsafe: true }).success).toBe(false);
     expect(analystInputSchema.safeParse({ ...validAnalystInput, unsafe: true }).success).toBe(false);
     expect(analystOutputSchema.safeParse({ ...validAnalystOutput, unsafe: true }).success).toBe(false);
+  });
+
+  it('represents malformed policy source status distinctly from transport unavailability', () => {
+    expect(
+      policySourceStatusSchema.safeParse({
+        sourceId: 'rules',
+        state: 'malformed',
+        checkedAt: timestamp,
+        malformedReason: 'missing-main'
+      }).success
+    ).toBe(true);
+    expect(
+      policySourceStatusSchema.safeParse({
+        sourceId: 'rules',
+        state: 'malformed',
+        checkedAt: timestamp
+      }).success
+    ).toBe(false);
+    expect(
+      policySourceStatusSchema.safeParse({
+        sourceId: 'rules',
+        state: 'unavailable',
+        checkedAt: timestamp,
+        malformedReason: 'missing-main'
+      }).success
+    ).toBe(false);
   });
 
   it('accepts only typed operation steps in experiment phases', () => {

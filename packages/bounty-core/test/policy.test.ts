@@ -6,6 +6,7 @@ import {
   parsePolicyGateInput,
   policyFingerprint,
   policyFingerprintForEnforcement,
+  PolicyGateInputError,
   type PolicyGateInput,
   PolicyStatusError,
   type PolicyOperationClassification,
@@ -80,6 +81,18 @@ function expectStatusRejection(
   }
 
   throw new Error(`Expected PolicyStatusError with code ${code}`);
+}
+
+function expectGateInputRejection(run: () => unknown, code: PolicyGateInputError['code']): void {
+  try {
+    run();
+  } catch (error) {
+    expect(error).toBeInstanceOf(PolicyGateInputError);
+    expect((error as PolicyGateInputError).code).toBe(code);
+    return;
+  }
+
+  throw new Error(`Expected PolicyGateInputError with code ${code}`);
 }
 
 describe('computePolicyStatus', () => {
@@ -361,12 +374,25 @@ describe('evaluatePolicyGate', () => {
   });
 
   it('fails closed when parsing unknown operation classifications', () => {
-    expect(() =>
-      parsePolicyGateInput({
-        ...gateInput(),
-        operationFamilies: ['unrecognized-operation-family']
-      })
-    ).toThrow();
+    expectGateInputRejection(
+      () =>
+        parsePolicyGateInput({
+          ...gateInput(),
+          operationFamilies: ['unrecognized-operation-family']
+        }),
+      'unknown_operation_classification'
+    );
+  });
+
+  it('fails closed when gate input has extra keys or a nonstandard prototype', () => {
+    expectGateInputRejection(
+      () => parsePolicyGateInput({ ...gateInput(), unexpected: true }),
+      'invalid_policy_gate_input'
+    );
+    expectGateInputRejection(
+      () => parsePolicyGateInput(Object.assign(Object.create({}), gateInput())),
+      'invalid_policy_gate_input'
+    );
   });
 });
 
@@ -389,7 +415,8 @@ describe('policyFingerprint', () => {
   it('changes immediately when fixed code-owned enforcement changes before pin re-review', () => {
     const reviewed = snapshot();
     const baseEnforcement = {
-      version: 1,
+      schemaVersion: 1 as const,
+      allowedTargetHosts: ['api.github.com'] as const,
       forbiddenOperationFamilies: ['credential-attack'] as const
     };
     const revisedEnforcement = {
