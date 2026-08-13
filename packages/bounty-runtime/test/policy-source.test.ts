@@ -85,7 +85,7 @@ function dependencies(fetch: PolicyFetch): PolicySourceClientDependencies {
   return {
     fetch,
     now: () => now,
-    createAbortController: () => new AbortController(),
+    createAbortController: () => new globalThis.AbortController(),
     setTimeout: () => ({ kind: 'timer' }),
     clearTimeout: () => undefined
   };
@@ -123,7 +123,7 @@ function successfulFetch(
       expect(options.redirect).toBe('manual');
       expect(options.credentials).toBe('omit');
       expect(options.headers).toEqual({});
-      expect(options.signal).toBeInstanceOf(AbortSignal);
+      expect(options.signal).toBeInstanceOf(globalThis.AbortSignal);
       return { status: 200, text: async () => body };
     },
     attempts: () => attempts
@@ -171,7 +171,7 @@ describe('canonicalizePolicyHtml', () => {
   });
 
   it('uses UTF-8 byte counts for the cap before canonicalization and permits the exact boundary', () => {
-    const encoder = new TextEncoder();
+    const encoder = new globalThis.TextEncoder();
     const wrapper = '<main></main>';
     const bodyBytes = MAX_POLICY_SOURCE_BODY_BYTES - encoder.encode(wrapper).byteLength;
     const exactBody = `${'é'.repeat(Math.floor((bodyBytes - 1) / 2))}x`;
@@ -325,7 +325,7 @@ describe('fetchPolicySource', () => {
       ...dependencies(fetch),
       setTimeout: (callback, delayMs) => {
         observedDelay = delayMs;
-        queueMicrotask(callback);
+        globalThis.queueMicrotask(callback);
         return { kind: 'timeout' };
       },
       clearTimeout: () => {
