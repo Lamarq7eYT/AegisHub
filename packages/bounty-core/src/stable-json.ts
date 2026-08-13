@@ -2,6 +2,16 @@ import { createHash } from 'node:crypto';
 
 import { isJsonValue, type JsonObject, type JsonValue } from './contracts.js';
 
+function compareJsonKeys(left: string, right: string): number {
+  if (left < right) {
+    return -1;
+  }
+  if (left > right) {
+    return 1;
+  }
+  return 0;
+}
+
 function sortJson(value: JsonValue): JsonValue {
   if (Array.isArray(value)) {
     return value.map(sortJson);
@@ -9,8 +19,10 @@ function sortJson(value: JsonValue): JsonValue {
 
   if (value !== null && typeof value === 'object') {
     const sorted: JsonObject = Object.create(null) as JsonObject;
-    for (const key of Object.keys(value).sort()) {
-      sorted[key] = sortJson(value[key]);
+    for (const [key, child] of Object.entries(value).sort(([left], [right]) =>
+      compareJsonKeys(left, right)
+    )) {
+      sorted[key] = sortJson(child);
     }
     return sorted;
   }
