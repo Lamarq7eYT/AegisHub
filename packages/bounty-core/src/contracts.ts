@@ -45,6 +45,10 @@ function isJsonValueInner(value: unknown, ancestors: WeakSet<object>): value is 
 }
 
 function isJsonArray(value: unknown[], ancestors: WeakSet<object>): boolean {
+  if (Object.getPrototypeOf(value) !== Array.prototype) {
+    return false;
+  }
+
   const ownNames = Object.getOwnPropertyNames(value);
   if (ownNames.length !== value.length + 1 || ownNames.at(-1) !== 'length') {
     return false;
