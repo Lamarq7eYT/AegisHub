@@ -1,0 +1,36 @@
+name: Bounty TDD Remote
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tdd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --no-frozen-lockfile
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bounty-tdd-lockfile-${{ github.run_id }}
+          path: pnpm-lock.yaml
+          retention-days: 1
+      - name: Test bounty core
+        if: ${{ hashFiles('packages/bounty-core/package.json') != '' }}
+        run: pnpm --filter @aegishub/bounty-core test
+      - name: Test bounty runtime
+        if: ${{ hashFiles('packages/bounty-runtime/package.json') != '' }}
+        run: pnpm --filter @aegishub/bounty-runtime test
+      - name: Test bounty CLI
+        if: ${{ hashFiles('packages/cli/test/**/*.ts') != '' }}
+        run: pnpm --filter aegishub test
