@@ -278,7 +278,8 @@ describe('labManifestSchema', () => {
     }
     const cyclic: { self?: unknown } = {};
     cyclic.self = cyclic;
-    const sparse = [1, , 3];
+    const sparse = [1];
+    sparse.length = 3;
     const extended = [1];
     Object.defineProperty(extended, 'unsafe', { enumerable: true, value: () => undefined });
 
