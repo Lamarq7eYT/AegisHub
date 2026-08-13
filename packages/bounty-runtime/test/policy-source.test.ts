@@ -9,6 +9,7 @@ import {
   POLICY_SOURCE_URLS,
   PolicySourceContentError,
   PolicySourceInputError,
+  type FetchPolicySourceInput,
   type PolicyFetch,
   type PolicySourceClientDependencies,
   type PolicySourceId,
@@ -91,6 +92,15 @@ function dependencies(fetch: PolicyFetch): PolicySourceClientDependencies {
   };
 }
 
+function sourceInput(dependencySet: PolicySourceClientDependencies): FetchPolicySourceInput {
+  return {
+    sourceId: 'rules',
+    url: POLICY_SOURCE_URLS[0],
+    expectedSha256,
+    dependencies: dependencySet
+  };
+}
+
 function reviewedSnapshot(): PolicySnapshot {
   return {
     schemaVersion: 1,
@@ -143,6 +153,19 @@ describe('canonicalizePolicyHtml', () => {
     );
   });
 
+  it('normalizes uppercase common named entities but rejects malformed numeric references', () => {
+    expect(canonicalizePolicyHtml('<main>&AMP; &LT; &GT; &QUOT; &APOS; &NBSP; &EACUTE;</main>')).toBe(
+      canonicalizePolicyHtml('<main>&amp; &lt; &gt; &quot; &apos; &nbsp; &eacute;</main>')
+    );
+
+    for (const malformedReference of ['&#;', '&#x;', '&#xZZ;']) {
+      contentErrorCode(
+        () => canonicalizePolicyHtml(`<main>Invalid ${malformedReference}</main>`),
+        'invalid-normalized-content'
+      );
+    }
+  });
+
   it('accepts case-variant main markers and removes volatile blocks inside main', () => {
     const withVolatileBlocks = `
       <MAIN data-policy="1"><p>Keep requests low.</p><script>ignore()</script><style>.x{}</style>
@@ -167,6 +190,20 @@ describe('canonicalizePolicyHtml', () => {
     ['malformed-main', '</main><p>Unexpected close</p>'],
     ['empty-normalized-content', '<main><nav>only navigation</nav><style>.x{}</style></main>']
   ] as const)('fails closed for %s', (code, html) => {
+    contentErrorCode(() => canonicalizePolicyHtml(html), code);
+  });
+
+  it.each([
+    ['missing-main', '<main_foo>not a main</main_foo>'],
+    ['missing-main', '<main!>not a main</main!>'],
+    ['malformed-main', '<main>policy</main junk>'],
+    ['malformed-main', '<main/>policy</main>'],
+    ['malformed-main', '<main policy>content<!-- unclosed</main>'],
+    ['invalid-normalized-content', '<main>content<script>unclosed</main>'],
+    ['invalid-normalized-content', '<main>content<style>unclosed</main>'],
+    ['invalid-normalized-content', '<main>content<nav>unclosed</main>'],
+    ['invalid-normalized-content', '<main>content<footer>unclosed</main>']
+  ] as const)('rejects deceptive or incomplete markup as %s without partial canonical content', (code, html) => {
     contentErrorCode(() => canonicalizePolicyHtml(html), code);
   });
 
@@ -275,6 +312,128 @@ describe('fetchPolicySource', () => {
     expect(attempts).toBe(0);
   });
 
+  it('rejects accessor-bearing top-level input without invoking its getter or starting work', async () => {
+    let getterCalls = 0;
+    let fetchAttempts = 0;
+    let timerAttempts = 0;
+    const input = sourceInput({
+      ...dependencies(async () => {
+        fetchAttempts += 1;
+        return { status: 200, text: async () => semanticHtml };
+      }),
+      setTimeout: () => {
+        timerAttempts += 1;
+        return { kind: 'timer' };
+      }
+    });
+    Object.defineProperty(input, 'sourceId', {
+      enumerable: true,
+      get: () => {
+        getterCalls += 1;
+        throw new Error('must not run');
+      }
+    });
+
+    await inputErrorCode(() => fetchPolicySource(input), 'invalid_policy_source_input');
+    expect(getterCalls).toBe(0);
+    expect(fetchAttempts).toBe(0);
+    expect(timerAttempts).toBe(0);
+  });
+
+  it('rejects accessor-bearing dependencies without invoking their getter or starting work', async () => {
+    let getterCalls = 0;
+    let fetchAttempts = 0;
+    let timerAttempts = 0;
+    const dependencySet = dependencies(async () => {
+      fetchAttempts += 1;
+      return { status: 200, text: async () => semanticHtml };
+    });
+    Object.defineProperty(dependencySet, 'setTimeout', {
+      enumerable: true,
+      value: () => {
+        timerAttempts += 1;
+        return { kind: 'timer' };
+      }
+    });
+    Object.defineProperty(dependencySet, 'fetch', {
+      enumerable: true,
+      get: () => {
+        getterCalls += 1;
+        throw new Error('must not run');
+      }
+    });
+    const input = sourceInput(dependencySet);
+
+    await inputErrorCode(() => fetchPolicySource(input), 'invalid_policy_source_input');
+    expect(getterCalls).toBe(0);
+    expect(fetchAttempts).toBe(0);
+    expect(timerAttempts).toBe(0);
+  });
+
+  it.each(['symbol', 'non-enumerable'] as const)(
+    'rejects %s extra own input properties before fetch or timer setup',
+    async (kind) => {
+      let fetchAttempts = 0;
+      let timerAttempts = 0;
+      const input = sourceInput({
+        ...dependencies(async () => {
+          fetchAttempts += 1;
+          return { status: 200, text: async () => semanticHtml };
+        }),
+        setTimeout: () => {
+          timerAttempts += 1;
+          return { kind: 'timer' };
+        }
+      });
+      if (kind === 'symbol') {
+        Object.defineProperty(input, Symbol('unexpected'), { value: true, enumerable: true });
+      } else {
+        Object.defineProperty(input, 'unexpected', { value: true, enumerable: false });
+      }
+
+      await inputErrorCode(() => fetchPolicySource(input), 'invalid_policy_source_input');
+      expect(fetchAttempts).toBe(0);
+      expect(timerAttempts).toBe(0);
+    }
+  );
+
+  it.each(['input', 'dependencies'] as const)(
+    'maps %s reflection failures to typed input rejection before fetch or timer setup',
+    async (kind) => {
+      let fetchAttempts = 0;
+      let timerAttempts = 0;
+      const dependencySet = {
+        ...dependencies(async () => {
+          fetchAttempts += 1;
+          return { status: 200, text: async () => semanticHtml };
+        }),
+        setTimeout: () => {
+          timerAttempts += 1;
+          return { kind: 'timer' };
+        }
+      };
+      const reflectionTrap = {
+        ownKeys: () => {
+          throw new Error('reflection failed');
+        }
+      };
+      const input =
+        kind === 'input'
+          ? new Proxy(sourceInput(dependencySet), reflectionTrap)
+          : sourceInput(new Proxy(dependencySet, reflectionTrap));
+
+      await inputErrorCode(() => fetchPolicySource(input), 'invalid_policy_source_input');
+      expect(fetchAttempts).toBe(0);
+      expect(timerAttempts).toBe(0);
+    }
+  );
+
+  it('freezes the exported allowlist and every correlated source definition', () => {
+    expect(Object.isFrozen(POLICY_SOURCE_URLS)).toBe(true);
+    expect(Object.isFrozen(POLICY_SOURCES)).toBe(true);
+    expect(POLICY_SOURCES.every((source) => Object.isFrozen(source))).toBe(true);
+  });
+
   it('clears the timeout after a successful request', async () => {
     const controlled = successfulFetch(POLICY_SOURCE_URLS[0], semanticHtml);
     let cleared = 0;
@@ -292,6 +451,30 @@ describe('fetchPolicySource', () => {
       dependencies: clientDependencies
     });
     expect(cleared).toBe(1);
+  });
+
+  it('maps a cleanup failure after a successful fetch to typed invalid input after one clear attempt', async () => {
+    const controlled = successfulFetch(POLICY_SOURCE_URLS[0], semanticHtml);
+    let clearAttempts = 0;
+
+    await inputErrorCode(
+      () =>
+        fetchPolicySource({
+          sourceId: 'rules',
+          url: POLICY_SOURCE_URLS[0],
+          expectedSha256,
+          dependencies: {
+            ...dependencies(controlled.fetch),
+            clearTimeout: () => {
+              clearAttempts += 1;
+              throw new Error('cleanup failed');
+            }
+          }
+        }),
+      'invalid_policy_source_input'
+    );
+    expect(controlled.attempts()).toBe(1);
+    expect(clearAttempts).toBe(1);
   });
 
   it('turns transport failures into unavailable results without retrying', async () => {

@@ -29,7 +29,11 @@ export type PolicySourceMalformedReason = Extract<
   { state: 'malformed' }
 >['reason'];
 
-type PolicyAbortSignal = object;
+interface PolicyAbortSignal {
+  readonly aborted: boolean;
+  addEventListener(type: 'abort', listener: () => void, options?: { readonly once?: boolean }): void;
+  removeEventListener(type: 'abort', listener: () => void): void;
+}
 
 export interface PolicyFetchResponse {
   readonly status: number;
