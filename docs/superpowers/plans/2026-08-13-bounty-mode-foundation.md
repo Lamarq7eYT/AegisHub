@@ -1786,7 +1786,7 @@ pnpm --filter @aegishub/bounty-runtime exec vitest run test/builtin-private-boun
 pnpm --filter @aegishub/bounty-runtime typecheck
 ```
 
-Expected: all exit `0` and the built-in stable hash is asserted in the test so later edits require explicit review.
+Expected: all exit `0`. Assert that identical parsed documents have the same fingerprint and that any semantic experiment change alters the fingerprint and invalidates prior approval. Do not pin one literal hash merely to detect an intentional source edit.
 
 - [ ] **Step 6: Commit the first experiment**
 
