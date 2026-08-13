@@ -197,6 +197,7 @@ export const policySnapshotSchema = z
   .object({
     schemaVersion: z.literal(1),
     policyVersion: nonEmptyStringSchema,
+    enforcementSha256: sha256Schema,
     sources: z.array(policySourceSchema).min(1),
     rulesOfEngagement: z.array(nonEmptyStringSchema).min(1),
     inScopeTargets: z.array(nonEmptyStringSchema).min(1),

@@ -126,6 +126,7 @@ const validEvidenceIndex = {
 const validPolicySnapshot = {
   schemaVersion: 1,
   policyVersion: 'github-bounty-2026-08',
+  enforcementSha256: sha256,
   sources: [
     {
       id: 'rules',
