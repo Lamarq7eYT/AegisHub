@@ -70,7 +70,11 @@ function gateInput(overrides: Partial<PolicyGateInput> = {}): PolicyGateInput {
 
 function expectStatusRejection(
   run: () => unknown,
-  code: 'invalid_policy_snapshot' | 'enforcement_hash_mismatch' | 'incomplete_policy_source_results'
+  code:
+    | 'invalid_policy_snapshot'
+    | 'enforcement_hash_mismatch'
+    | 'invalid_policy_source_results'
+    | 'incomplete_policy_source_results'
 ): void {
   try {
     run();
@@ -213,6 +217,24 @@ describe('computePolicyStatus', () => {
           now
         }),
       'incomplete_policy_source_results'
+    );
+  });
+
+  it('rejects retrieval results checked after the injected clock', () => {
+    const reviewed = snapshot();
+    const later = new Date(now.getTime() + 1);
+
+    expectStatusRejection(
+      () =>
+        computePolicyStatus({
+          snapshot: reviewed,
+          retrievals: matchingRetrievals(reviewed).map((retrieval) => ({
+            ...retrieval,
+            checkedAt: later
+          })),
+          now
+        }),
+      'invalid_policy_source_results'
     );
   });
 
@@ -393,6 +415,50 @@ describe('evaluatePolicyGate', () => {
       () => parsePolicyGateInput(Object.assign(Object.create({}), gateInput())),
       'invalid_policy_gate_input'
     );
+  });
+
+  it.each([
+    {
+      name: 'a sparse operation family array',
+      input: () => ({ ...gateInput(), operationFamilies: new Array<PolicyOperationClassification>(1) })
+    },
+    {
+      name: 'an Array subclass of operation families',
+      input: () => {
+        class OperationFamilies extends Array<PolicyOperationClassification> {}
+        return { ...gateInput(), operationFamilies: new OperationFamilies('repository-read-boundary') };
+      }
+    },
+    {
+      name: 'an empty operation family array',
+      input: () => ({ ...gateInput(), operationFamilies: [] })
+    },
+    {
+      name: 'a sparse source result array',
+      input: () => ({
+        ...gateInput(),
+        status: { ...gateInput().status, sourceResults: new Array<PolicySourceResult>(1) }
+      })
+    },
+    {
+      name: 'an Array subclass of source results',
+      input: () => {
+        class SourceResults extends Array<PolicySourceResult> {}
+        return {
+          ...gateInput(),
+          status: {
+            ...gateInput().status,
+            sourceResults: new SourceResults({
+              sourceId: 'rules',
+              state: 'unavailable',
+              checkedAt: now
+            })
+          }
+        };
+      }
+    }
+  ])('fails closed for $name', ({ input }) => {
+    expectGateInputRejection(() => parsePolicyGateInput(input()), 'invalid_policy_gate_input');
   });
 });
 

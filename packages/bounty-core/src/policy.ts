@@ -110,6 +110,7 @@ export type PolicyGateDecision =
 export type PolicyStatusRejectionReason =
   | 'invalid_policy_snapshot'
   | 'enforcement_hash_mismatch'
+  | 'invalid_policy_source_results'
   | 'incomplete_policy_source_results';
 
 export class PolicyStatusError extends Error {
