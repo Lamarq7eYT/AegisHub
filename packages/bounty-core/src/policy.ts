@@ -146,7 +146,7 @@ export function computePolicyStatus(input: {
     throw new PolicyStatusError('enforcement_hash_mismatch');
   }
 
-  const retrievals = validateRetrievals(input.retrievals, snapshot);
+  const retrievals = validateRetrievals(input.retrievals, snapshot, input.now);
   const sourceStatuses = retrievals.map((retrieval) => ({
     sourceId: retrieval.sourceId,
     state: retrieval.state,
@@ -225,11 +225,12 @@ export function parsePolicyGateInput(input: unknown): PolicyGateInput {
   if (
     !isPolicyState(status.state) ||
     !isValidDate(status.checkedAt) ||
-    !Array.isArray(status.sourceResults) ||
+    !isPlainArray(status.sourceResults) ||
     !Number.isSafeInteger(mutationCount) ||
     mutationCount < 0 ||
     !isNonEmptyStringArray(targets) ||
-    !Array.isArray(operationFamilies)
+    !isPlainArray(operationFamilies) ||
+    operationFamilies.length === 0
   ) {
     throw new PolicyGateInputError('invalid_policy_gate_input');
   }
@@ -284,7 +285,8 @@ function validateSnapshot(snapshot: PolicySnapshot): PolicySnapshot {
 
 function validateRetrievals(
   retrievals: readonly PolicySourceResult[],
-  snapshot: PolicySnapshot
+  snapshot: PolicySnapshot,
+  now: Date
 ): readonly PolicySourceResult[] {
   if (retrievals.length !== expectedPolicySources.length) {
     throw new PolicyStatusError('incomplete_policy_source_results');
@@ -292,7 +294,13 @@ function validateRetrievals(
   const expectedSources = new Map(snapshot.sources.map((source) => [source.id, source]));
   const seen = new Set<string>();
   for (const retrieval of retrievals) {
-    if (!isPolicySourceResult(retrieval) || !expectedSources.has(retrieval.sourceId) || seen.has(retrieval.sourceId)) {
+    if (
+      !isPolicySourceResult(retrieval) ||
+      retrieval.checkedAt.getTime() > now.getTime()
+    ) {
+      throw new PolicyStatusError('invalid_policy_source_results');
+    }
+    if (!expectedSources.has(retrieval.sourceId) || seen.has(retrieval.sourceId)) {
       throw new PolicyStatusError('incomplete_policy_source_results');
     }
     seen.add(retrieval.sourceId);
@@ -301,7 +309,7 @@ function validateRetrievals(
 }
 
 function validateGateSourceResults(sourceResults: unknown[]): readonly PolicySourceResult[] {
-  if (!sourceResults.every(isPolicySourceResult)) {
+  if (!isPlainArray(sourceResults) || !sourceResults.every(isPolicySourceResult)) {
     throw new PolicyGateInputError('invalid_policy_gate_input');
   }
   return sourceResults;
