@@ -100,6 +100,10 @@ interface ValidatedFetchInput {
   readonly controller: PolicyAbortController;
 }
 
+type OperationOutcome<T> =
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly error: unknown };
+
 const textEncoder = new TextEncoder();
 const emptyHeaders: Readonly<Record<string, never>> = Object.freeze({});
 const blockElements = new Set([
@@ -178,7 +182,7 @@ export async function fetchPolicySource(input: FetchPolicySourceInput): Promise<
     throw new PolicySourceInputError('invalid_policy_source_input');
   }
 
-  try {
+  const outcome = await captureOutcome(async () => {
     let response: PolicyFetchResponse;
     try {
       response = await fetch(validated.url, {
@@ -222,12 +226,23 @@ export async function fetchPolicySource(input: FetchPolicySourceInput): Promise<
       }
       throw error;
     }
-  } finally {
-    try {
-      clearTimeout(timer);
-    } catch {
-      throw new PolicySourceInputError('invalid_policy_source_input');
-    }
+  });
+  try {
+    clearTimeout(timer);
+  } catch {
+    throw new PolicySourceInputError('invalid_policy_source_input');
+  }
+  if (outcome.ok) {
+    return outcome.value;
+  }
+  throw outcome.error;
+}
+
+async function captureOutcome<T>(operation: () => Promise<T>): Promise<OperationOutcome<T>> {
+  try {
+    return { ok: true, value: await operation() };
+  } catch (error) {
+    return { ok: false, error };
   }
 }
 
