@@ -82,7 +82,15 @@ export type PolicySourceResult =
       sourceId: string;
       state: 'malformed';
       checkedAt: Date;
-      reason: 'missing-main' | 'empty-normalized-content' | 'invalid-normalized-content';
+      reason:
+        | 'missing-main'
+        | 'multiple-main'
+        | 'malformed-main'
+        | 'empty-normalized-content'
+        | 'invalid-normalized-content'
+        | 'source-too-large'
+        | 'redirect-response'
+        | 'http-error-response';
     };
 
 export interface PolicyGateInput {
@@ -343,7 +351,14 @@ function isPolicySourceResult(value: unknown): value is PolicySourceResult {
   return (
     value.state === 'malformed' &&
     hasExactKeys(value, ['sourceId', 'state', 'checkedAt', 'reason']) &&
-    (value.reason === 'missing-main' || value.reason === 'empty-normalized-content' || value.reason === 'invalid-normalized-content')
+    (value.reason === 'missing-main' ||
+      value.reason === 'multiple-main' ||
+      value.reason === 'malformed-main' ||
+      value.reason === 'empty-normalized-content' ||
+      value.reason === 'invalid-normalized-content' ||
+      value.reason === 'source-too-large' ||
+      value.reason === 'redirect-response' ||
+      value.reason === 'http-error-response')
   );
 }
 

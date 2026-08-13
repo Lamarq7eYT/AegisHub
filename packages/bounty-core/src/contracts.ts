@@ -214,7 +214,16 @@ export const policySourceStatusSchema = z
     checkedAt: timestampSchema,
     observedSha256: sha256Schema.optional(),
     malformedReason: z
-      .enum(['missing-main', 'empty-normalized-content', 'invalid-normalized-content'])
+      .enum([
+        'missing-main',
+        'multiple-main',
+        'malformed-main',
+        'empty-normalized-content',
+        'invalid-normalized-content',
+        'source-too-large',
+        'redirect-response',
+        'http-error-response'
+      ])
       .optional()
   })
   .strict()
