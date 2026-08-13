@@ -141,8 +141,7 @@ const namedEntities: Readonly<Record<string, string>> = Object.freeze({
   quot: '"',
   apos: "'",
   nbsp: ' ',
-  eacute: 'é',
-  Eacute: 'É'
+  eacute: 'é'
 });
 
 export function canonicalizePolicyHtml(html: string): string {
@@ -167,9 +166,12 @@ export function hashCanonicalPolicyHtml(html: string): string {
 
 export async function fetchPolicySource(input: FetchPolicySourceInput): Promise<PolicySourceResult> {
   const validated = validateFetchInput(input);
+  const setTimeout = validated.dependencies.setTimeout;
+  const clearTimeout = validated.dependencies.clearTimeout;
+  const fetch = validated.dependencies.fetch;
   let timer: unknown;
   try {
-    timer = validated.dependencies.setTimeout(() => {
+    timer = setTimeout(() => {
       validated.controller.abort();
     }, POLICY_SOURCE_TIMEOUT_MS);
   } catch {
@@ -179,7 +181,7 @@ export async function fetchPolicySource(input: FetchPolicySourceInput): Promise<
   try {
     let response: PolicyFetchResponse;
     try {
-      response = await validated.dependencies.fetch(validated.url, {
+      response = await fetch(validated.url, {
         redirect: 'manual',
         credentials: 'omit',
         headers: emptyHeaders,
@@ -222,7 +224,7 @@ export async function fetchPolicySource(input: FetchPolicySourceInput): Promise<
     }
   } finally {
     try {
-      validated.dependencies.clearTimeout(timer);
+      clearTimeout(timer);
     } catch {
       throw new PolicySourceInputError('invalid_policy_source_input');
     }
@@ -258,8 +260,10 @@ function validateFetchInput(input: unknown): ValidatedFetchInput {
   let checkedAt: Date;
   let controller: PolicyAbortController;
   try {
-    checkedAt = dependencies.now();
-    controller = dependencies.createAbortController();
+    const now = dependencies.now;
+    const createAbortController = dependencies.createAbortController;
+    checkedAt = now();
+    controller = createAbortController();
   } catch {
     throw new PolicySourceInputError('invalid_policy_source_input');
   }
@@ -457,25 +461,52 @@ function readHtmlTag(html: string, start: number): HtmlTag | undefined {
     return undefined;
   }
   let quote: '"' | "'" | undefined;
-  let lastNonWhitespace = '';
+  let attributeState: 'between' | 'name' | 'before-value' | 'quoted-value' | 'unquoted-value' = 'between';
+  let selfClosing = false;
   for (; cursor < html.length; cursor += 1) {
     const character = html[cursor]!;
     if (quote !== undefined) {
       if (character === quote) {
         quote = undefined;
+        attributeState = 'between';
       }
       continue;
     }
     if (character === '"' || character === "'") {
-      quote = character;
+      if (attributeState === 'between' || attributeState === 'before-value') {
+        quote = character;
+        attributeState = 'quoted-value';
+      } else if (attributeState !== 'unquoted-value') {
+        return undefined;
+      }
     } else if (character === '>') {
-      return { name, closing, selfClosing: lastNonWhitespace === '/', start, end: cursor + 1 };
+      return { name, closing, selfClosing, start, end: cursor + 1 };
     } else if (closing) {
       if (!isWhitespace(character)) {
         return undefined;
       }
-    } else if (!isWhitespace(character)) {
-      lastNonWhitespace = character;
+    } else if (isWhitespace(character)) {
+      if (attributeState === 'name' || attributeState === 'unquoted-value') {
+        attributeState = 'between';
+      }
+    } else if (character === '/') {
+      if (attributeState === 'between' || attributeState === 'name') {
+        selfClosing = true;
+        attributeState = 'between';
+      }
+    } else if (character === '=') {
+      if (attributeState !== 'name') {
+        return undefined;
+      }
+      selfClosing = false;
+      attributeState = 'before-value';
+    } else if (attributeState === 'between') {
+      if (selfClosing) {
+        return undefined;
+      }
+      attributeState = 'name';
+    } else if (attributeState === 'before-value') {
+      attributeState = 'unquoted-value';
     }
   }
   return undefined;
