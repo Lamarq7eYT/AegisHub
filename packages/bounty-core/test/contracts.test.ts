@@ -298,6 +298,20 @@ describe('labManifestSchema', () => {
     expect(jsonValueSchema.safeParse({ [Symbol('evidence')]: 'hidden' }).success).toBe(false);
   });
 
+  it('rejects Array subclasses that can forge JSON serialization', () => {
+    class ForgedArray extends Array<number> {
+      public toJSON(): { forged: boolean } {
+        return { forged: true };
+      }
+    }
+
+    const forged = new ForgedArray();
+    forged.push(1);
+
+    expect(jsonValueSchema.safeParse(forged).success).toBe(false);
+    expect(() => stableJson(forged as never)).toThrow('JSON-compatible');
+  });
+
   it('round-trips complete persisted documents', () => {
     const lab = labManifestSchema.parse(validLab);
     const experiment = experimentSchema.parse(validExperiment);
