@@ -175,6 +175,10 @@ describe('canonicalizePolicyHtml', () => {
     expect(canonicalizePolicyHtml(withVolatileBlocks)).toBe(canonicalizePolicyHtml(semanticHtml));
   });
 
+  it('treats a trailing slash in an unquoted URL attribute as attribute content, not self-closing syntax', () => {
+    expect(canonicalizePolicyHtml('<main data-url=https://example.test/>content</main>')).toBe('content');
+  });
+
   it('changes the hash when a rule inside main changes', () => {
     const changedRule = semanticHtml.replace('Keep requests low.', 'Do not send requests.');
 
