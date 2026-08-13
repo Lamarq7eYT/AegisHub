@@ -3,13 +3,13 @@ import { TextEncoder } from 'node:util';
 
 import type { PolicySourceResult } from '@aegishub/bounty-core';
 
-export const POLICY_SOURCE_URLS = [
+export const POLICY_SOURCE_URLS = Object.freeze([
   'https://bounty.github.com/rules.html',
   'https://bounty.github.com/scope.html',
   'https://bounty.github.com/targets.html',
   'https://bounty.github.com/ineligible.html',
   'https://bounty.github.com/rewards.html'
-] as const;
+] as const);
 
 export const POLICY_SOURCES = Object.freeze([
   Object.freeze({ id: 'rules', url: POLICY_SOURCE_URLS[0] }),
@@ -86,6 +86,7 @@ export class PolicySourceInputError extends Error {
 interface HtmlTag {
   readonly name: string;
   readonly closing: boolean;
+  readonly selfClosing: boolean;
   readonly start: number;
   readonly end: number;
 }
@@ -100,6 +101,7 @@ interface ValidatedFetchInput {
 }
 
 const textEncoder = new TextEncoder();
+const emptyHeaders: Readonly<Record<string, never>> = Object.freeze({});
 const blockElements = new Set([
   'address',
   'article',
@@ -180,7 +182,7 @@ export async function fetchPolicySource(input: FetchPolicySourceInput): Promise<
       response = await validated.dependencies.fetch(validated.url, {
         redirect: 'manual',
         credentials: 'omit',
-        headers: {},
+        headers: emptyHeaders,
         signal: validated.controller.signal
       });
     } catch {
@@ -219,7 +221,11 @@ export async function fetchPolicySource(input: FetchPolicySourceInput): Promise<
       throw error;
     }
   } finally {
-    validated.dependencies.clearTimeout(timer);
+    try {
+      validated.dependencies.clearTimeout(timer);
+    } catch {
+      throw new PolicySourceInputError('invalid_policy_source_input');
+    }
   }
 }
 
@@ -232,20 +238,19 @@ function malformed(input: ValidatedFetchInput, reason: PolicySourceMalformedReas
 }
 
 function validateFetchInput(input: unknown): ValidatedFetchInput {
-  if (
-    !isPlainRecord(input) ||
-    !hasExactKeys(input, ['sourceId', 'url', 'expectedSha256', 'dependencies'])
-  ) {
+  const inputData = readDataRecord(input, ['sourceId', 'url', 'expectedSha256', 'dependencies']);
+  if (inputData === undefined) {
     throw new PolicySourceInputError('invalid_policy_source_input');
   }
-  const { sourceId, url, expectedSha256, dependencies } = input;
+  const { sourceId, url, expectedSha256 } = inputData;
   const source =
     typeof sourceId === 'string' && typeof url === 'string' ? findKnownSource(sourceId, url) : undefined;
+  const dependencies = readDependencies(inputData.dependencies);
   if (
     source === undefined ||
     typeof expectedSha256 !== 'string' ||
     !isExpectedSha256(expectedSha256) ||
-    !isValidDependencies(dependencies)
+    dependencies === undefined
   ) {
     throw new PolicySourceInputError('invalid_policy_source_input');
   }
@@ -284,6 +289,12 @@ function selectSingleMain(html: string): string {
     if (tagStart < 0) {
       break;
     }
+    if (html.startsWith('<!--', tagStart) && html.indexOf('-->', tagStart + 4) < 0) {
+      if (mainDepth > 0) {
+        throw new PolicySourceContentError('malformed-main');
+      }
+      break;
+    }
     const tag = readHtmlTag(html, tagStart);
     if (tag === undefined) {
       if (looksLikeMainMarker(html, tagStart)) {
@@ -294,7 +305,14 @@ function selectSingleMain(html: string): string {
     }
     index = tag.end;
     if (!tag.closing && (tag.name === 'script' || tag.name === 'style')) {
-      index = skipRawTextElement(html, tag.name, index);
+      const rawTextEnd = skipRawTextElement(html, tag.name, index);
+      if (rawTextEnd === undefined) {
+        if (mainDepth > 0) {
+          throw new PolicySourceContentError('invalid-normalized-content');
+        }
+        break;
+      }
+      index = rawTextEnd;
       continue;
     }
     if (tag.name !== 'main') {
@@ -309,6 +327,10 @@ function selectSingleMain(html: string): string {
         contentEnd = tag.start;
       }
       continue;
+    }
+
+    if (tag.selfClosing) {
+      throw new PolicySourceContentError('malformed-main');
     }
 
     mainCount += 1;
@@ -385,10 +407,15 @@ function normalizeText(text: string): string {
 }
 
 function decodeEntities(text: string): string {
-  return text.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z][a-z0-9]+);/giu, (entity, reference: string) => {
+  return text.replace(/&(#(?:[xX][^;]*|[^;]*)|[a-z][a-z0-9]*);/giu, (entity, reference: string) => {
     if (reference.startsWith('#')) {
-      const hexadecimal = reference.slice(1, 2).toLowerCase() === 'x';
-      const value = Number.parseInt(reference.slice(hexadecimal ? 2 : 1), hexadecimal ? 16 : 10);
+      const hexadecimal = reference[1]?.toLowerCase() === 'x';
+      const digits = reference.slice(hexadecimal ? 2 : 1);
+      const validDigits = hexadecimal ? /^[0-9a-f]+$/iu.test(digits) : /^[0-9]+$/u.test(digits);
+      if (digits.length === 0 || !validDigits) {
+        throw new PolicySourceContentError('invalid-normalized-content');
+      }
+      const value = Number.parseInt(digits, hexadecimal ? 16 : 10);
       if (
         !Number.isSafeInteger(value) ||
         value < 0 ||
@@ -399,7 +426,7 @@ function decodeEntities(text: string): string {
       }
       return String.fromCodePoint(value);
     }
-    return namedEntities[reference] ?? entity;
+    return namedEntities[reference.toLowerCase()] ?? entity;
   });
 }
 
@@ -407,8 +434,8 @@ function readHtmlTag(html: string, start: number): HtmlTag | undefined {
   if (html.startsWith('<!--', start)) {
     const commentEnd = html.indexOf('-->', start + 4);
     return commentEnd < 0
-      ? { name: '', closing: false, start, end: html.length }
-      : { name: '', closing: false, start, end: commentEnd + 3 };
+      ? undefined
+      : { name: '', closing: false, selfClosing: false, start, end: commentEnd + 3 };
   }
   let cursor = start + 1;
   let closing = false;
@@ -425,7 +452,12 @@ function readHtmlTag(html: string, start: number): HtmlTag | undefined {
     cursor += 1;
   }
   const name = html.slice(nameStart, cursor).toLowerCase();
+  const delimiter = html[cursor];
+  if (delimiter === undefined || (!isWhitespace(delimiter) && delimiter !== '/' && delimiter !== '>')) {
+    return undefined;
+  }
   let quote: '"' | "'" | undefined;
+  let lastNonWhitespace = '';
   for (; cursor < html.length; cursor += 1) {
     const character = html[cursor]!;
     if (quote !== undefined) {
@@ -437,7 +469,13 @@ function readHtmlTag(html: string, start: number): HtmlTag | undefined {
     if (character === '"' || character === "'") {
       quote = character;
     } else if (character === '>') {
-      return { name, closing, start, end: cursor + 1 };
+      return { name, closing, selfClosing: lastNonWhitespace === '/', start, end: cursor + 1 };
+    } else if (closing) {
+      if (!isWhitespace(character)) {
+        return undefined;
+      }
+    } else if (!isWhitespace(character)) {
+      lastNonWhitespace = character;
     }
   }
   return undefined;
@@ -447,12 +485,12 @@ function looksLikeMainMarker(html: string, start: number): boolean {
   return /^<\/?main(?:[\s/>]|$)/iu.test(html.slice(start));
 }
 
-function skipRawTextElement(html: string, name: 'script' | 'style', start: number): number {
+function skipRawTextElement(html: string, name: 'script' | 'style', start: number): number | undefined {
   let index = start;
   while (index < html.length) {
     const tagStart = html.indexOf('<', index);
     if (tagStart < 0) {
-      return html.length;
+      return undefined;
     }
     const tag = readHtmlTag(html, tagStart);
     if (tag === undefined) {
@@ -464,7 +502,7 @@ function skipRawTextElement(html: string, name: 'script' | 'style', start: numbe
     }
     index = tag.end;
   }
-  return html.length;
+  return undefined;
 }
 
 function isAsciiLetter(value: string): boolean {
@@ -473,6 +511,10 @@ function isAsciiLetter(value: string): boolean {
 
 function isTagNameCharacter(value: string): boolean {
   return isAsciiLetter(value) || (value >= '0' && value <= '9') || value === '-' || value === ':';
+}
+
+function isWhitespace(value: string): boolean {
+  return value === ' ' || value === '\t' || value === '\n' || value === '\r' || value === '\f';
 }
 
 function findKnownSource(
@@ -486,16 +528,25 @@ function isExpectedSha256(value: string): boolean {
   return /^[a-f0-9]{64}$/u.test(value);
 }
 
-function isValidDependencies(value: unknown): value is PolicySourceClientDependencies {
-  return (
-    isPlainRecord(value) &&
-    hasExactKeys(value, ['fetch', 'now', 'createAbortController', 'setTimeout', 'clearTimeout']) &&
-    typeof value.fetch === 'function' &&
-    typeof value.now === 'function' &&
-    typeof value.createAbortController === 'function' &&
-    typeof value.setTimeout === 'function' &&
-    typeof value.clearTimeout === 'function'
-  );
+function readDependencies(value: unknown): PolicySourceClientDependencies | undefined {
+  const data = readDataRecord(value, ['fetch', 'now', 'createAbortController', 'setTimeout', 'clearTimeout']);
+  if (
+    data === undefined ||
+    typeof data.fetch !== 'function' ||
+    typeof data.now !== 'function' ||
+    typeof data.createAbortController !== 'function' ||
+    typeof data.setTimeout !== 'function' ||
+    typeof data.clearTimeout !== 'function'
+  ) {
+    return undefined;
+  }
+  return {
+    fetch: data.fetch as PolicyFetch,
+    now: data.now as () => Date,
+    createAbortController: data.createAbortController as () => PolicyAbortController,
+    setTimeout: data.setTimeout as (callback: () => void, delayMs: number) => unknown,
+    clearTimeout: data.clearTimeout as (timer: unknown) => void
+  };
 }
 
 function isAbortController(value: unknown): value is PolicyAbortController {
@@ -535,19 +586,33 @@ function isValidDate(value: unknown): value is Date {
   return value instanceof Date && Number.isFinite(value.getTime());
 }
 
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
+function readDataRecord(value: unknown, expectedKeys: readonly string[]): Record<string, unknown> | undefined {
   if (typeof value !== 'object' || value === null) {
-    return false;
+    return undefined;
   }
   try {
     const prototype = Object.getPrototypeOf(value);
-    return prototype === Object.prototype || prototype === null;
+    if (prototype !== Object.prototype && prototype !== null) {
+      return undefined;
+    }
+    const ownKeys = Reflect.ownKeys(value);
+    if (
+      ownKeys.length !== expectedKeys.length ||
+      ownKeys.some((key) => typeof key !== 'string' || !expectedKeys.includes(key))
+    ) {
+      return undefined;
+    }
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const data: Record<string, unknown> = {};
+    for (const key of expectedKeys) {
+      const descriptor = descriptors[key];
+      if (descriptor === undefined || !descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) {
+        return undefined;
+      }
+      data[key] = descriptor.value;
+    }
+    return data;
   } catch {
-    return false;
+    return undefined;
   }
-}
-
-function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
-  const actualKeys = Object.keys(value);
-  return actualKeys.length === keys.length && keys.every((key) => Object.hasOwn(value, key));
 }
