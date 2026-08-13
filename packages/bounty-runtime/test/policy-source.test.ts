@@ -434,6 +434,33 @@ describe('fetchPolicySource', () => {
     expect(POLICY_SOURCES.every((source) => Object.isFrozen(source))).toBe(true);
   });
 
+  it('rejects a controller with a non-abortable signal before timer or fetch', async () => {
+    let fetchAttempts = 0;
+    let timerAttempts = 0;
+    const malformedController = {
+      abort: () => undefined,
+      signal: {}
+    } as unknown as ReturnType<PolicySourceClientDependencies['createAbortController']>;
+    const clientDependencies: PolicySourceClientDependencies = {
+      ...dependencies(async () => {
+        fetchAttempts += 1;
+        return { status: 200, text: async () => semanticHtml };
+      }),
+      createAbortController: () => malformedController,
+      setTimeout: () => {
+        timerAttempts += 1;
+        return { kind: 'timer' };
+      }
+    };
+
+    await inputErrorCode(
+      () => fetchPolicySource(sourceInput(clientDependencies)),
+      'invalid_policy_source_input'
+    );
+    expect(fetchAttempts).toBe(0);
+    expect(timerAttempts).toBe(0);
+  });
+
   it('clears the timeout after a successful request', async () => {
     const controlled = successfulFetch(POLICY_SOURCE_URLS[0], semanticHtml);
     let cleared = 0;
