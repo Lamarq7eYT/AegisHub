@@ -182,7 +182,7 @@ export async function fetchPolicySource(input: FetchPolicySourceInput): Promise<
     throw new PolicySourceInputError('invalid_policy_source_input');
   }
 
-  const outcome = await captureOutcome(async () => {
+  const outcome = await captureOutcome<PolicySourceResult>(async (): Promise<PolicySourceResult> => {
     let response: PolicyFetchResponse;
     try {
       response = await fetch(validated.url, {
