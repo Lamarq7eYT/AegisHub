@@ -559,7 +559,10 @@ function isAbortController(value: unknown): value is PolicyAbortController {
     return (
       typeof controller.abort === 'function' &&
       typeof signal === 'object' &&
-      signal !== null
+      signal !== null &&
+      typeof (signal as { aborted?: unknown }).aborted === 'boolean' &&
+      typeof (signal as { addEventListener?: unknown }).addEventListener === 'function' &&
+      typeof (signal as { removeEventListener?: unknown }).removeEventListener === 'function'
     );
   } catch {
     return false;
