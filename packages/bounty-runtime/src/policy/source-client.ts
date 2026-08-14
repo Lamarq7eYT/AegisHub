@@ -83,6 +83,40 @@ export class PolicySourceInputError extends Error {
   }
 }
 
+export class PolicySourceReviewError extends Error {
+  constructor(readonly code: 'unimplemented_policy_review') {
+    super(code);
+    this.name = 'PolicySourceReviewError';
+  }
+}
+
+export interface FetchPolicySourceForReviewInput {
+  readonly sourceId: PolicySourceId;
+  readonly url: PolicySourceUrl;
+  readonly dependencies: PolicySourceClientDependencies;
+}
+
+export type PolicySourceReviewResult =
+  | {
+      readonly state: 'available';
+      readonly sourceId: PolicySourceId;
+      readonly url: PolicySourceUrl;
+      readonly checkedAt: Date;
+      readonly observedSha256: string;
+      readonly canonicalContent: string;
+    }
+  | {
+      readonly state: 'unavailable';
+      readonly sourceId: PolicySourceId;
+      readonly url: PolicySourceUrl;
+    }
+  | {
+      readonly state: 'malformed';
+      readonly sourceId: PolicySourceId;
+      readonly url: PolicySourceUrl;
+      readonly reason: PolicySourceMalformedReason;
+    };
+
 interface HtmlTag {
   readonly name: string;
   readonly closing: boolean;
@@ -236,6 +270,13 @@ export async function fetchPolicySource(input: FetchPolicySourceInput): Promise<
     return outcome.value;
   }
   throw outcome.error;
+}
+
+/** API-only RED seam for the review script; it must reuse the policy transport in GREEN. */
+export async function fetchPolicySourceForReview(
+  _input: FetchPolicySourceForReviewInput
+): Promise<PolicySourceReviewResult> {
+  throw new PolicySourceReviewError('unimplemented_policy_review');
 }
 
 async function captureOutcome<T>(operation: () => Promise<T>): Promise<OperationOutcome<T>> {
