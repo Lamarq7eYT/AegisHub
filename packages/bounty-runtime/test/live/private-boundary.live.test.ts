@@ -432,4 +432,3 @@ async function requireTypedConfirmation(expected: string, purpose: string): Prom
 function isJsonObject(value: JsonValue | undefined): value is { readonly [key: string]: JsonValue } {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
-
