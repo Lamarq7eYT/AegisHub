@@ -150,6 +150,7 @@ const descriptors: Record<OperationId, OperationDescriptor> = {
     allowedActors: ['owner'],
     permission: 'contents:write',
     retry: 'never',
+    cleanupOperationId: 'github.rest.contents.delete-lab-marker.v1',
     normalizationProfile: 'marker-mutation-v1',
     retainedResponseHeaders: ['content-type', 'etag', 'x-github-media-type'],
     retainedFields: ['content.sha', 'commit.sha'],

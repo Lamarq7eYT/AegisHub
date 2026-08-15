@@ -9,3 +9,5 @@ export * from './lab/verifier.js';
 export * from './transport/operation-catalog.js';
 export * from './transport/rate-limiter.js';
 export * from './transport/guarded-transport.js';
+export * from './experiments/loader.js';
+export * from './experiments/planner.js';
