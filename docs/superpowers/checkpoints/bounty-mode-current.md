@@ -81,7 +81,7 @@ Task 4 is complete. Authentication uses session-only credentials by default, exp
 
 ## Next continuation point
 
-Continue with **Task 8 — Step 1: write journal state-machine tests**. Implement the append-only write-ahead cleanup journal, active-run lease, cooperative stop, dirty-state recovery, and controlled runner only after observing the focused RED states. The completed Task 7 commit is recorded below.
+Continue with **Task 9 — Step 1: write evidence writer tests**. Implement atomic sanitized evidence, reports, checksums, retention, and immutable analysis-pack boundaries only after observing the focused RED states. The completed Task 8 commit is recorded below.
 
 Before claiming Phase 1 completion, continue Task by Task through the remaining plan, keep this checkpoint current after every completed Task, run all non-live verification gates, and record the live gate as pending unless the user-owned lab is explicitly available and verified. Never request or store passwords, cookies, 2FA codes, access tokens, refresh tokens, or reserve-account credentials in chat or fixtures.
 
@@ -117,6 +117,12 @@ Task 6 verification: bounty-core passed 131 tests, typecheck, lint with zero err
 Task 7 is complete in commit `c443aaf feat(bounty): plan declarative bounded experiments`. It adds bounded YAML/JSON experiment loading with a 64 KiB limit, strict schema validation, path and symlink guards, stable YAML/JSON hashing, immutable planning, policy/lab/catalog invariants, fixed phase ordering, explicit repeat requirements, and catalog-declared cleanup inverses. The frozen catalog now includes the marker cleanup inverse required by the planner.
 
 Task 7 verification: bounty-runtime passed 187 tests, typecheck, lint with zero errors and non-fatal security-rule warnings, and build. Bounty-core build passed as the runtime dependency. `git diff --check` passed before commit. The worktree was clean at commit creation and the branch was ahead of origin by eleven commits.
+
+## Continuation update — Task 8 completed
+
+Task 8 is complete in commit `77cc9b8 feat(bounty): run experiments with verified cleanup`. It adds the append-only write-ahead mutation journal with fsync and hash links, state-machine transition validation, LabVerifier compatibility, exclusive active-run leases, cooperative emergency stop with run/nonce pairing, PID recovery, dirty-state persistence and verification-gated resolution, and the controlled ExperimentRunner with phase ordering, single-use approval consumption, policy/stop checks, lost-mutation verification, reverse cleanup, dirty marking, and differential classification.
+
+Task 8 verification: bounty-core passed 131 tests, lint with zero errors and non-fatal security warnings, typecheck, and build. Bounty-runtime passed 204 tests across 16 files, lint with zero errors and non-fatal security warnings, typecheck, and build. The focused Task 8 suite passed 16 tests; `git diff --check` passed before commit. The worktree was clean at commit creation and the branch is ahead of origin by one commit.
 
 ## Commands to resume
 
