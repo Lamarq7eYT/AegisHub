@@ -102,6 +102,18 @@ $env:GITHUB_TOKEN="your_token_here"
 
 No real credentials are included in this repository.
 
+## Bounty Mode Phase 1
+
+Bounty Mode is a safety-constrained security research workbench for a verified, directly owner-owned private lab. It uses separate Device Flow identities, fixed catalog operations, low-volume budgets, policy and lab verification, deterministic differential analysis, write-ahead cleanup journaling and sanitized evidence. It is **not an autonomous bounty finder**, does not enumerate third-party targets and never submits reports.
+
+Read the complete [Bounty Mode operator guide](./docs/BOUNTY_MODE.md) before enabling any workflow. The normal suite is loopback-only; live GitHub validation is opt-in and requires the user present with an already enrolled owned lab.
+
+```bash
+pnpm --filter aegishub build
+node packages/cli/dist/index.js bounty --help
+node packages/cli/dist/index.js bounty experiment list
+```
+
 ## What It Detects
 
 - Exposed credentials and API keys.
@@ -162,13 +174,15 @@ For recording notes, see [docs/DEMO.md](./docs/DEMO.md).
 
 - `packages/core` - Rust analysis engine with native and WASM targets.
 - `packages/orchestrator` - Fastify backend for scan orchestration, persistence, and AI enrichment.
-- `packages/cli` - Developer CLI for local and remote scans.
+- `packages/cli` - Developer CLI for local and remote scans plus guarded Bounty Mode orchestration.
+- `packages/bounty-core` - Pure Bounty Mode contracts, policy, catalog, budgets, redaction and differential analysis.
+- `packages/bounty-runtime` - Controlled Bounty Mode auth, lab, transport, runner, evidence and integration harness.
 - `packages/github-app` - GitHub App webhook handler and PR notifier.
 - `packages/dashboard` - React and Vite dashboard for scan reports.
 
 ## Architecture
 
-More detail is available in [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
+More detail is available in [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md). Bounty Mode ownership and safety boundaries are described in [docs/BOUNTY_MODE.md](./docs/BOUNTY_MODE.md).
 
 ## Roadmap
 
@@ -178,6 +192,7 @@ More detail is available in [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 - Add GitHub App PR status and comment publishing.
 - Connect AI fix generation with cache-backed enrichment.
 - Add dependency audit through OSV.
+- Continue Bounty Mode only through verified owned-lab experiments, non-live CI and an explicit human review gate.
 
 ## Security
 

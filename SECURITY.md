@@ -44,6 +44,14 @@ Out of scope:
 - issues requiring leaked credentials or access to someone else's account;
 - findings that only affect local development without a plausible security impact.
 
+## Bounty Mode research boundary
+
+Bounty Mode is a controlled research workbench, not an autonomous bounty finder. Active tests are limited to low-volume experiments against a verified private repository directly owned by the operator, using separate owner and researcher accounts. Do not test repositories, organizations, accounts or data that you do not own or explicitly control. A candidate result is not automatically a vulnerability, severity assessment or submission.
+
+Never paste passwords, access tokens, refresh tokens, cookies, 2FA codes, private keys or client secrets into issues, reports, AI prompts or fixtures. Public issues are not a disclosure channel for security findings. For GitHub product candidates, use GitHub's official Bug Bounty process and its private channel. For AegisHub itself, use this repository's private security contact and GitHub Security Advisories.
+
+The normal test suite uses synthetic identities and a loopback fake server. The live gate is opt-in, requires the user present with an already enrolled owned lab, and must never be replaced with a third-party target. Evidence is sanitized before persistence and must not contain raw secrets or PII.
+
 ## Credit
 
 When a report leads to a published GitHub Security Advisory, we will credit eligible reporters and remediation contributors in the advisory.

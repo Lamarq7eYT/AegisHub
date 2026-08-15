@@ -12,3 +12,6 @@ pkg/
 *.log
 aegishub-report.json
 github-scan-report.json
+
+# Bounty Mode local manifests, journals, leases, dirty state and evidence bundles
+.aegishub/
