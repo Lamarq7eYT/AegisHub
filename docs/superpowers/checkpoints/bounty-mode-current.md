@@ -81,10 +81,10 @@ Task 4 is complete. Authentication uses session-only credentials by default, exp
 
 ## Next continuation point
 
-Continue with **Task 6 — Step 1: write catalog escape and fingerprint property tests**. Implement the reviewed operation catalog, deterministic rate limiter, and guarded GitHub transport only after observing their focused RED states. The next intended commit from the plan is:
+Continue with **Task 7 — Step 1: write hostile YAML/JSON loader tests**. Implement bounded declarative loading and immutable planning only after observing the focused RED states. The next intended commit from the plan is:
 
 ```text
-feat(bounty): guard GitHub operations by catalog
+feat(bounty): plan declarative bounded experiments
 ```
 
 Before claiming Phase 1 completion, continue Task by Task through the remaining plan, keep this checkpoint current after every completed Task, run all non-live verification gates, and record the live gate as pending unless the user-owned lab is explicitly available and verified. Never request or store passwords, cookies, 2FA codes, access tokens, refresh tokens, or reserve-account credentials in chat or fixtures.
@@ -109,6 +109,12 @@ Verification after the update:
 Task 5 is complete in commit `5be9209 feat(bounty): verify immutable owned-resource labs`. It adds fixed-path `.aegishub/bounty-lab.json` storage with stable hashes, atomic writes, restrictive permissions, symlink/traversal rejection, compare-and-swap replacement, immutable repository/owner verification, strict proof-of-control marker validation, explicit mutation confirmation, retained markers, rollback journaling, and dirty-state reporting without exposing control nonces.
 
 Task 5 verification: runtime suite passed with 159 tests; runtime typecheck passed; runtime lint passed with zero errors and non-fatal security-rule warnings; runtime build passed with the optional keyring kept external. The worktree was clean after the Task 5 commit and the branch was ahead of origin by seven commits.
+
+## Continuation update — Task 6 completed
+
+Task 6 is complete in commit `797df47 feat(bounty): guard GitHub operations by catalog`. It adds the frozen Phase 1 operation catalog and fingerprint, strict parameter validation with fixed-origin URL rendering, runtime purpose/actor/repository guards, a per-run token bucket and semaphore, and a guarded transport with late authentication, fixed headers, redirect/manual credential controls, budgets, retries, stop conditions, byte caps, and sanitized observations.
+
+Task 6 verification: bounty-core passed 131 tests, typecheck, lint with zero errors, and build. Bounty-runtime passed 171 tests, typecheck, lint with zero errors and non-fatal security warnings, and build. The worktree was clean after the Task 6 commit and the branch was ahead of origin by nine commits.
 
 ## Commands to resume
 
