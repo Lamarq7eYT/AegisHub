@@ -81,10 +81,10 @@ Task 4 is complete. Authentication uses session-only credentials by default, exp
 
 ## Next continuation point
 
-Continue with **Task 5 — Step 1: write failing lab-store tests**. Implement the local immutable lab store only after observing the focused RED state. The next intended commit from the plan is:
+Continue with **Task 6 — Step 1: write catalog escape and fingerprint property tests**. Implement the reviewed operation catalog, deterministic rate limiter, and guarded GitHub transport only after observing their focused RED states. The next intended commit from the plan is:
 
 ```text
-feat(bounty): verify immutable owned-resource labs
+feat(bounty): guard GitHub operations by catalog
 ```
 
 Before claiming Phase 1 completion, continue Task by Task through the remaining plan, keep this checkpoint current after every completed Task, run all non-live verification gates, and record the live gate as pending unless the user-owned lab is explicitly available and verified. Never request or store passwords, cookies, 2FA codes, access tokens, refresh tokens, or reserve-account credentials in chat or fixtures.
@@ -103,6 +103,12 @@ Verification after the update:
 - bounty-runtime: 145 tests passed, typecheck passed, lint passed with non-fatal security-rule warnings, build passed after externalizing the optional native keyring module.
 - Task 4 focused auth gate: 20 tests passed and seeded token search in captured output returned zero matches.
 - Worktree is clean at checkpoint creation; branch is ahead of origin by five commits.
+
+## Continuation update — Task 5 completed
+
+Task 5 is complete in commit `5be9209 feat(bounty): verify immutable owned-resource labs`. It adds fixed-path `.aegishub/bounty-lab.json` storage with stable hashes, atomic writes, restrictive permissions, symlink/traversal rejection, compare-and-swap replacement, immutable repository/owner verification, strict proof-of-control marker validation, explicit mutation confirmation, retained markers, rollback journaling, and dirty-state reporting without exposing control nonces.
+
+Task 5 verification: runtime suite passed with 159 tests; runtime typecheck passed; runtime lint passed with zero errors and non-fatal security-rule warnings; runtime build passed with the optional keyring kept external. The worktree was clean after the Task 5 commit and the branch was ahead of origin by seven commits.
 
 ## Commands to resume
 
