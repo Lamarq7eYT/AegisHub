@@ -14,3 +14,5 @@ export * from './experiments/planner.js';
 export * from './experiments/journal.js';
 export * from './experiments/active-run.js';
 export * from './experiments/runner.js';
+export * from './evidence/writer.js';
+export * from './evidence/report.js';
