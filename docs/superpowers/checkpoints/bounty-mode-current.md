@@ -182,3 +182,9 @@ pnpm --filter @aegishub/bounty-core lint
 pnpm --filter @aegishub/bounty-core typecheck
 pnpm --filter @aegishub/bounty-core build
 ```
+
+## Continuation update — Phase 2 authorization consistency design prepared
+
+The user approved the design of Hypothesis 1: read-only comparison of private-marker authorization between fixed REST and GraphQL interfaces on the operator-owned lab repository, using owner, researcher, and anonymous perspectives. No new login, live request, mutation, repository change, or disclosure was performed.
+
+The specification is recorded in `docs/superpowers/specs/2026-08-15-bounty-mode-phase2-rest-graphql-authorization.md`. It preserves the Phase 1 ceilings and safety constraints: fixed catalog and host, typed manifest references, no arbitrary GraphQL query or URL, no mutation, maximum 12 requests, concurrency 1, bounded retries, sanitized evidence, human review for `anomalous`, and no automatic AI execution or HackerOne submission. The next gate is a separate approval to implement the specification with TDD; live execution remains prohibited until implementation, local gates, policy review, and an explicit user-present execution plan are approved.
