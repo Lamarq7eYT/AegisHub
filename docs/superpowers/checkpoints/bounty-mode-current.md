@@ -81,7 +81,7 @@ Task 4 is complete. Authentication uses session-only credentials by default, exp
 
 ## Next continuation point
 
-Continue with **Task 12 — Step 1: implement the stateful loopback-only fake GitHub server**. Bind only to 127.0.0.1 on an ephemeral port, model the approved Device Flow/lab/transport faults, and then exercise the actual runtime end to end. The completed Task 11 commit is recorded below.
+Continue with **Task 13 — Step 1: add local-state exclusions and non-secret environment examples**. Document safe setup, harden CI, update repository metadata, and retain the Task 12 live validation as pending because it requires the user present. The completed Task 12 commit is recorded below.
 
 Before claiming Phase 1 completion, continue Task by Task through the remaining plan, keep this checkpoint current after every completed Task, run all non-live verification gates, and record the live gate as pending unless the user-owned lab is explicitly available and verified. Never request or store passwords, cookies, 2FA codes, access tokens, refresh tokens, or reserve-account credentials in chat or fixtures.
 
@@ -141,6 +141,12 @@ Task 10 verification: bounty-core passed 131 tests, lint with zero errors and no
 Task 11 is complete in commit `3412273 feat(cli): expose guarded bounty workflows`. It adds the nested `bounty` command tree, injected service composition root, session-only default and explicit keyring persistence selection, readline-based terminal confirmation, stable typed CLI errors, policy/auth/lab/experiment/run/evidence/stop orchestration, and two regression suites proving the legacy help/auth/report surface remains intact. The runtime YAML asset remains packaged for the CLI dependency.
 
 Task 11 verification: focused CLI tests passed 10 tests; CLI lint passed with zero errors and one non-fatal filesystem-security warning; CLI typecheck and build passed. `git diff --check` passed before commit. The worktree was clean at commit creation and the branch is ahead of origin by one commit.
+
+## Continuation update — Task 12 completed
+
+Task 12 is complete in commit `8f4c730 test(bounty): cover safe and anomalous boundaries`. It adds a stateful loopback-only fake GitHub server with synthetic Device Flow states, immutable identity fixtures, marker mutations, bypass toggle, rename/name-reuse modeling, sanitized request logs, transport faults, lost mutation responses and cleanup failures. Integration tests exercise the real guarded transport, bundled planner, differential classification, atomic evidence write/inspect/export, expected safe boundary, anomalous lab-owned marker disclosure, retry/stop semantics, out-of-lab detection and no-token logging. The live test is explicitly skipped unless `AEGISHUB_BOUNTY_LIVE=1`.
+
+Task 12 verification: the full runtime suite passed 232 tests; loopback integration passed 19 tests with 1 live test skipped; runtime lint passed with zero errors and non-fatal security warnings; typecheck and build passed; `git diff --check` passed before commit. The user-presence live gate remains pending by design: it must not be simulated with another target or credentials.
 
 ## Commands to resume
 
