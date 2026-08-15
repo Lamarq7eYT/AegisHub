@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { Buffer } from 'node:buffer';
+
 import type { PlannedOperation } from '@aegishub/bounty-core';
 
 import { RunRateLimiter } from '../src/transport/rate-limiter.js';
@@ -30,12 +32,12 @@ function response(status = 200, body: unknown = { id: 3003, node_id: 'R_lab_fixt
   return { status, headers: { 'content-type': 'application/json', etag: 'fixture-etag', 'x-github-media-type': 'fixture-media' }, body: JSON.stringify(body) };
 }
 
-function makeExecutor(responses: Array<GuardedHttpResponse | Error>): LogicalHttpExecutor & { requests: Array<{ url: globalThis.URL; headers: globalThis.Headers; method: string }> } {
-  const requests: Array<{ url: globalThis.URL; headers: globalThis.Headers; method: string }> = [];
+function makeExecutor(responses: Array<GuardedHttpResponse | Error>): LogicalHttpExecutor & { requests: Array<{ url: globalThis.URL; headers: globalThis.Headers; method: string; body?: string }> } {
+  const requests: Array<{ url: globalThis.URL; headers: globalThis.Headers; method: string; body?: string }> = [];
   return {
     requests,
     async execute(request) {
-      requests.push({ url: request.url, headers: request.headers, method: request.method });
+      requests.push({ url: request.url, headers: request.headers, method: request.method, ...(request.body === undefined ? {} : { body: request.body }) });
       const next = responses.shift();
       if (next === undefined) throw new Error('fixture_response_exhausted');
       if (next instanceof Error) throw next;
@@ -78,6 +80,25 @@ describe('GuardedGitHubTransport', () => {
     expect(JSON.stringify(observation)).not.toContain(token);
   });
 
+  it('stamps observations with the execution runId rather than the planId', async () => {
+    const executionRunId = 'a8b7f6e5-d4c3-4b2a-9108-76543210fedc';
+    const executor = makeExecutor([response()]);
+    const transport = makeTransport(executor, {
+      context: {
+        labId: plan.labId,
+        runId: executionRunId,
+        policyVersion: 'github-bbp-v1',
+        catalogVersion: '1.0.0',
+        repository: { id: 3003, nodeId: 'R_lab_fixture', fullName: 'owner-fixture/lab-fixture' }
+      }
+    });
+
+    const observation = await transport.execute(plan, new globalThis.AbortController().signal);
+
+    expect(observation.runId).toBe(executionRunId);
+    expect(observation.runId).not.toBe(plan.planId);
+  });
+
   it('omits authentication for anonymous requests and maps ordinary denial to an observation', async () => {
     const anonymousPlan = { ...plan, step: { ...plan.step, actor: 'anonymous' as const } };
     const executor = makeExecutor([response(403, { message: 'Resource not accessible by integration' })]);
@@ -99,10 +120,81 @@ describe('GuardedGitHubTransport', () => {
     await expect(unauthorized.execute(plan, new globalThis.AbortController().signal)).rejects.toMatchObject({ code: 'transport_unauthorized' });
   });
 
+  it('sends the typed marker payload for the cataloged enrollment mutation', async () => {
+    const mutationPlan: PlannedOperation = {
+      ...plan,
+      step: {
+        ...plan.step,
+        phase: 'setup',
+        operationId: 'github.rest.contents.put-lab-marker.v1',
+        parameters: {
+          owner: 'owner-fixture',
+          repo: 'lab-fixture',
+          message: 'aegishub: verify bounty lab',
+          content: 'eyJmaXh0dXJlIjp0cnVlfQ=='
+        }
+      }
+    };
+    const executor = makeExecutor([response(201, { content: { sha: 'fixture-sha' } })]);
+    const transport = makeTransport(executor);
+
+    await expect(transport.execute(mutationPlan, new globalThis.AbortController().signal)).resolves.toMatchObject({ status: 201 });
+    expect(executor.requests[0]?.method).toBe('PUT');
+    expect(executor.requests[0]?.headers.get('content-type')).toBe('application/json');
+    expect(JSON.parse(executor.requests[0]?.body ?? '{}')).toEqual({
+      message: 'aegishub: verify bounty lab',
+      content: 'eyJmaXh0dXJlIjp0cnVlfQ=='
+    });
+  });
+
+  it('normalizes a real GitHub Contents base64 marker before protected-data detection', async () => {
+    const marker = { schemaVersion: 1, labId: plan.labId, repositoryId: 3003, ownerId: 1001, controlNonce: 'synthetic-control-nonce-123456' };
+    const encoded = Buffer.from(JSON.stringify(marker), 'utf8').toString('base64');
+    const executor = makeExecutor([response(200, { content: encoded, encoding: 'base64', sha: 'fixture-sha' })]);
+    const transport = makeTransport(executor);
+    const markerPlan: PlannedOperation = {
+      ...plan,
+      step: {
+        ...plan.step,
+        operationId: 'github.rest.contents.get-lab-marker.v1',
+        parameters: { owner: 'owner-fixture', repo: 'lab-fixture' }
+      }
+    };
+
+    const observation = await transport.execute(markerPlan, new globalThis.AbortController().signal);
+
+    expect(observation.protectedData).toBe(true);
+    expect(observation.normalizedBody).toMatchObject({ marker: { labId: plan.labId, repositoryId: 3003 } });
+    expect(JSON.stringify(observation)).not.toContain('synthetic-control-nonce');
+  });
+
+  it('returns the validated full marker only through the enrollment read seam', async () => {
+    const marker = { schemaVersion: 1, labId: plan.labId, repositoryId: 3003, ownerId: 1001, controlNonce: 'synthetic-control-nonce-123456' };
+    const encoded = Buffer.from(JSON.stringify(marker), 'utf8').toString('base64');
+    const executor = makeExecutor([response(200, { content: encoded, encoding: 'base64', sha: 'fixture-sha' })]);
+    const transport = makeTransport(executor);
+    const markerPlan: PlannedOperation = {
+      ...plan,
+      step: {
+        ...plan.step,
+        operationId: 'github.rest.contents.get-lab-marker.v1',
+        parameters: { owner: 'owner-fixture', repo: 'lab-fixture' }
+      }
+    };
+
+    await expect(transport.readMarker(markerPlan, new globalThis.AbortController().signal)).resolves.toEqual(marker);
+  });
+
   it('does not retry mutations, maps redirects and budget exhaustion to typed stop errors', async () => {
     const mutationPlan: PlannedOperation = {
       ...plan,
-      step: { ...plan.step, phase: 'cleanup', actor: 'owner', operationId: 'github.rest.contents.delete-lab-marker.v1' }
+      step: {
+        ...plan.step,
+        phase: 'cleanup',
+        actor: 'owner',
+        operationId: 'github.rest.contents.delete-lab-marker.v1',
+        parameters: { owner: 'owner-fixture', repo: 'lab-fixture', message: 'aegishub: remove bounty lab marker', sha: 'fixture-sha' }
+      }
     };
     const mutationExecutor = makeExecutor([new Error('network')]);
     const transport = makeTransport(mutationExecutor);

@@ -63,14 +63,26 @@ export type OperationCatalog = Readonly<Record<OperationId, OperationDescriptor>
 const allActors: readonly Actor[] = Object.freeze(['owner', 'researcher', 'anonymous']);
 const authenticatedActors: readonly Actor[] = Object.freeze(['owner', 'researcher']);
 const repositoryParametersSchema = z.object({ owner: z.string().min(1), repo: z.string().min(1) }).strict();
+const markerPutParametersSchema = z.object({
+  owner: z.string().min(1),
+  repo: z.string().min(1),
+  message: z.literal('aegishub: verify bounty lab'),
+  content: z.string().min(1).max(1_000_000).regex(/^[A-Za-z0-9+/]+={0,2}$/u)
+}).strict();
+const markerDeleteParametersSchema = z.object({
+  owner: z.string().min(1),
+  repo: z.string().min(1),
+  message: z.literal('aegishub: remove bounty lab marker'),
+  sha: z.string().min(1).max(200).regex(/^[A-Za-z0-9_-]+$/u)
+}).strict();
 const emptyParametersSchema = z.object({}).strict();
 const parameterSchemas: Readonly<Record<OperationId, z.ZodType<Record<string, JsonValue>>>> = {
   'github.rest.users.get-authenticated.v1': emptyParametersSchema,
   'github.graphql.viewer-identity.v1': emptyParametersSchema,
   'github.rest.repos.get.v1': repositoryParametersSchema,
   'github.rest.contents.get-lab-marker.v1': repositoryParametersSchema,
-  'github.rest.contents.put-lab-marker.v1': repositoryParametersSchema,
-  'github.rest.contents.delete-lab-marker.v1': repositoryParametersSchema
+  'github.rest.contents.put-lab-marker.v1': markerPutParametersSchema,
+  'github.rest.contents.delete-lab-marker.v1': markerDeleteParametersSchema
 };
 
 const descriptors: Record<OperationId, OperationDescriptor> = {

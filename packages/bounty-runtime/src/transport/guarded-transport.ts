@@ -3,12 +3,14 @@ import { Buffer } from 'node:buffer';
 
 import {
   observationSchema,
+  repositoryMarkerSchema,
   RunRedactor,
   type Actor,
   type AuthenticatedActor,
   type JsonValue,
   type Observation,
-  type PlannedOperation
+  type PlannedOperation,
+  type RepositoryMarker
 } from '@aegishub/bounty-core';
 
 import { resolveCatalogOperation, type CatalogExecutionPurpose, type CatalogRepositoryContext } from './operation-catalog.js';
@@ -20,6 +22,7 @@ export interface GuardedHttpRequest {
   readonly headers: globalThis.Headers;
   readonly redirect: 'manual';
   readonly credentials: 'omit';
+  readonly signal: globalThis.AbortSignal;
   readonly body?: string;
 }
 
@@ -94,6 +97,32 @@ export class GuardedGitHubTransport {
   }
 
   async execute(request: PlannedOperation, signal: globalThis.AbortSignal): Promise<Observation> {
+    const { descriptor, response, startedAt } = await this.executeResponse(request, signal);
+    return this.toObservation(request, descriptor.pathTemplate, response, startedAt);
+  }
+
+  async readMarker(request: PlannedOperation, signal: globalThis.AbortSignal): Promise<RepositoryMarker | 'missing'> {
+    if (request.step.operationId !== 'github.rest.contents.get-lab-marker.v1') {
+      throw new GuardedTransportError('transport_invalid_response');
+    }
+    const { response } = await this.executeResponse(request, signal);
+    if (response.status === 404) return 'missing';
+    if (response.status !== 200) throw new GuardedTransportError('transport_upstream_failure');
+    let parsed: JsonValue;
+    try {
+      parsed = JSON.parse(response.body) as JsonValue;
+    } catch {
+      throw new GuardedTransportError('transport_invalid_response');
+    }
+    const marker = decodeMarkerResponse(parsed);
+    if (marker === undefined) throw new GuardedTransportError('transport_invalid_response');
+    return marker;
+  }
+
+  private async executeResponse(
+    request: PlannedOperation,
+    signal: globalThis.AbortSignal
+  ): Promise<{ descriptor: ReturnType<typeof resolveCatalogOperation>['descriptor']; response: GuardedHttpResponse; startedAt: Date }> {
     if (this.#options.policyFingerprint() !== this.#options.expectedPolicyFingerprint) {
       throw new GuardedTransportError('transport_policy_changed');
     }
@@ -116,22 +145,18 @@ export class GuardedGitHubTransport {
           () => this.send(resolved, request.step.actor, signal),
           signal
         );
-        if (response.status >= 300 && response.status < 400) {
-          throw new GuardedTransportError('transport_redirect');
-        }
+        if (response.status >= 300 && response.status < 400) throw new GuardedTransportError('transport_redirect');
         if (response.status === 401) throw new GuardedTransportError('transport_unauthorized');
         if (response.status === 429) throw new GuardedTransportError('transport_rate_limited');
         if (response.status === 403 && (response.headers['x-ratelimit-remaining'] === '0' || /secondary rate limit/iu.test(response.body))) {
           throw new GuardedTransportError('transport_rate_limited');
         }
-        if (Buffer.byteLength(response.body, 'utf8') > this.#maxResponseBytes) {
-          throw new GuardedTransportError('transport_response_too_large');
-        }
+        if (Buffer.byteLength(response.body, 'utf8') > this.#maxResponseBytes) throw new GuardedTransportError('transport_response_too_large');
         if (response.status >= 500 && response.status <= 599) {
           if (attempt < maxAttempts && !isMutation) continue;
           throw new GuardedTransportError('transport_upstream_failure');
         }
-        return this.toObservation(request, descriptor.pathTemplate, response, startedAt);
+        return { descriptor, response, startedAt };
       } catch (error) {
         if (error instanceof GuardedTransportError) {
           if (error.code === 'transport_upstream_failure' && attempt < maxAttempts && !isMutation) continue;
@@ -181,7 +206,14 @@ export class GuardedGitHubTransport {
       headers,
       redirect: 'manual',
       credentials: 'omit',
-      ...(resolved.descriptor.protocol === 'graphql' ? { body: JSON.stringify({ documentId: 'ViewerIdentityV1' }) } : {})
+      signal,
+      ...(resolved.descriptor.protocol === 'graphql' ? { body: JSON.stringify({ documentId: 'ViewerIdentityV1' }) } : {}),
+      ...(resolved.descriptor.id === 'github.rest.contents.put-lab-marker.v1'
+        ? { body: JSON.stringify({ message: resolved.parameters.message, content: resolved.parameters.content }) }
+        : {}),
+      ...(resolved.descriptor.id === 'github.rest.contents.delete-lab-marker.v1'
+        ? { body: JSON.stringify({ message: resolved.parameters.message, sha: resolved.parameters.sha }) }
+        : {})
     });
     if (signal.aborted) throw new GuardedTransportError('transport_network_error');
     return response;
@@ -201,7 +233,7 @@ export class GuardedGitHubTransport {
     } catch {
       parsed = this.#redactor.redactText(response.body) as JsonValue;
     }
-    const normalizedBody = this.#redactor.redactJson(parsed);
+    const normalizedBody = this.#redactor.redactJson(normalizeMarkerResponse(request.step.operationId, parsed));
     const headers: Record<string, string> = {};
     for (const name of ['content-type', 'etag', 'x-github-media-type'] as const) {
       const value = response.headers[name];
@@ -213,7 +245,7 @@ export class GuardedGitHubTransport {
     const candidate = {
       schemaVersion: 1,
       observationId: randomUUID(),
-      runId: request.planId,
+      runId: this.#options.context.runId,
       experimentId: request.experimentId,
       experimentVersion: request.experimentVersion,
       operationId: request.step.operationId,
@@ -263,6 +295,33 @@ function hasOutOfLabRepository(body: JsonValue, repositoryId: number): boolean {
 
 function isJsonObject(value: JsonValue | undefined): value is { readonly [key: string]: JsonValue } {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeMarkerResponse(operationId: string, body: JsonValue): JsonValue {
+  const marker = operationId === 'github.rest.contents.get-lab-marker.v1' ? decodeMarkerResponse(body) : undefined;
+  if (marker === undefined) return body;
+  return {
+    marker: {
+      schemaVersion: marker.schemaVersion,
+      labId: marker.labId,
+      repositoryId: marker.repositoryId,
+      ownerId: marker.ownerId
+    },
+    ...(isJsonObject(body) && typeof body.sha === 'string' ? { sha: body.sha } : {})
+  };
+}
+
+function decodeMarkerResponse(body: JsonValue): RepositoryMarker | undefined {
+  if (!isJsonObject(body) || body.encoding !== 'base64' || typeof body.content !== 'string') return undefined;
+  const compactContent = body.content.replace(/\s/gu, '');
+  if (!/^[A-Za-z0-9+/]*={0,2}$/u.test(compactContent)) return undefined;
+  try {
+    const decoded = Buffer.from(compactContent, 'base64').toString('utf8');
+    const parsed = repositoryMarkerSchema.safeParse(JSON.parse(decoded) as unknown);
+    return parsed.success ? parsed.data : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function purposeForPhase(phase: PlannedOperation['step']['phase']): CatalogExecutionPurpose {

@@ -57,11 +57,13 @@ export type DeviceFlowErrorCode =
 
 export class DeviceFlowError extends Error {
   readonly code: DeviceFlowErrorCode;
+  readonly detail: string | undefined;
 
-  constructor(code: DeviceFlowErrorCode) {
+  constructor(code: DeviceFlowErrorCode, detail?: string) {
     super(code);
     this.name = 'DeviceFlowError';
     this.code = code;
+    this.detail = detail;
   }
 }
 
@@ -149,17 +151,39 @@ function mapVerification(verification: {
 }
 
 function mapDeviceFlowError(error: unknown): DeviceFlowError {
-  const code = error instanceof Error ? error.message.toLowerCase() : '';
+  const detail = safeOAuthErrorName(error);
+  const code = `${detail ?? ''} ${error instanceof Error ? error.message.toLowerCase() : ''}`;
   if (code.includes('access_denied') || code.includes('denied')) {
-    return new DeviceFlowError('device_flow_denied');
+    return new DeviceFlowError('device_flow_denied', detail);
   }
   if (code.includes('expired')) {
-    return new DeviceFlowError('device_flow_expired');
+    return new DeviceFlowError('device_flow_expired', detail);
   }
   if (code.includes('slow_down') || code.includes('slow down')) {
-    return new DeviceFlowError('device_flow_slow_down');
+    return new DeviceFlowError('device_flow_slow_down', detail);
   }
-  return new DeviceFlowError('device_flow_failed');
+  return new DeviceFlowError('device_flow_failed', detail);
+}
+
+function safeOAuthErrorName(error: unknown): string | undefined {
+  if (!isRecord(error) || !isRecord(error.response) || !isRecord(error.response.data)) return undefined;
+  const value = error.response.data.error;
+  if (typeof value !== 'string') return undefined;
+  const allowed = new Set([
+    'access_denied',
+    'authorization_pending',
+    'device_flow_disabled',
+    'expired_token',
+    'incorrect_client_credentials',
+    'incorrect_device_code',
+    'slow_down',
+    'unsupported_grant_type'
+  ]);
+  return allowed.has(value) ? value : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function createProductionStrategyFactory(): DeviceAuthStrategyFactory {

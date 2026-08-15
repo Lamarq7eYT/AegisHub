@@ -36,13 +36,13 @@ describe('runtime operation catalog', () => {
   it('requires the actor allowlist and protects mutation operations', () => {
     expect(() => resolveCatalogOperation({
       operationId: 'github.rest.contents.put-lab-marker.v1',
-      parameters: { owner: 'owner-fixture', repo: 'lab-fixture' },
+      parameters: { owner: 'owner-fixture', repo: 'lab-fixture', message: 'aegishub: verify bounty lab', content: 'e30=' },
       context: context('enrollment', 'researcher')
     })).toThrowError(new CatalogRuntimeError('catalog_actor_denied'));
 
     expect(resolveCatalogOperation({
       operationId: 'github.rest.contents.put-lab-marker.v1',
-      parameters: { owner: 'owner-fixture', repo: 'lab-fixture' },
+      parameters: { owner: 'owner-fixture', repo: 'lab-fixture', message: 'aegishub: verify bounty lab', content: 'e30=' },
       context: context('enrollment', 'owner')
     }).descriptor.classification).toBe('mutation');
   });

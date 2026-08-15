@@ -426,26 +426,31 @@ function validateFetchInput(input: unknown): ValidatedFetchInput {
 }
 
 function selectSingleMain(html: string): string {
+  try {
+    return selectSingleElement(html, 'main');
+  } catch (error) {
+    if (!(error instanceof PolicySourceContentError) || error.code !== 'missing-main') throw error;
+    return selectSingleElement(html, 'body');
+  }
+}
+
+function selectSingleElement(html: string, elementName: 'main' | 'body'): string {
   let index = 0;
-  let mainCount = 0;
-  let mainDepth = 0;
+  let elementCount = 0;
+  let elementDepth = 0;
   let contentStart = -1;
   let contentEnd = -1;
 
   while (index < html.length) {
     const tagStart = html.indexOf('<', index);
-    if (tagStart < 0) {
-      break;
-    }
+    if (tagStart < 0) break;
     if (html.startsWith('<!--', tagStart) && html.indexOf('-->', tagStart + 4) < 0) {
-      if (mainDepth > 0) {
-        throw new PolicySourceContentError('malformed-main');
-      }
+      if (elementDepth > 0) throw new PolicySourceContentError('malformed-main');
       break;
     }
     const tag = readHtmlTag(html, tagStart);
     if (tag === undefined) {
-      if (looksLikeMainMarker(html, tagStart)) {
+      if (looksLikeElementMarker(html, tagStart, elementName)) {
         throw new PolicySourceContentError('malformed-main');
       }
       index = tagStart + 1;
@@ -455,44 +460,29 @@ function selectSingleMain(html: string): string {
     if (!tag.closing && (tag.name === 'script' || tag.name === 'style')) {
       const rawTextEnd = skipRawTextElement(html, tag.name, index);
       if (rawTextEnd === undefined) {
-        if (mainDepth > 0) {
-          throw new PolicySourceContentError('invalid-normalized-content');
-        }
+        if (elementDepth > 0) throw new PolicySourceContentError('invalid-normalized-content');
         break;
       }
       index = rawTextEnd;
       continue;
     }
-    if (tag.name !== 'main') {
-      continue;
-    }
+    if (tag.name !== elementName) continue;
     if (tag.closing) {
-      if (mainDepth === 0) {
-        throw new PolicySourceContentError('malformed-main');
-      }
-      mainDepth -= 1;
-      if (mainDepth === 0) {
-        contentEnd = tag.start;
-      }
+      if (elementDepth === 0) throw new PolicySourceContentError('malformed-main');
+      elementDepth -= 1;
+      if (elementDepth === 0) contentEnd = tag.start;
       continue;
     }
+    if (tag.selfClosing) throw new PolicySourceContentError('malformed-main');
 
-    if (tag.selfClosing) {
-      throw new PolicySourceContentError('malformed-main');
-    }
-
-    mainCount += 1;
-    if (mainCount > 1) {
-      throw new PolicySourceContentError('multiple-main');
-    }
-    mainDepth += 1;
+    elementCount += 1;
+    if (elementCount > 1) throw new PolicySourceContentError('multiple-main');
+    elementDepth += 1;
     contentStart = tag.end;
   }
 
-  if (mainCount === 0) {
-    throw new PolicySourceContentError('missing-main');
-  }
-  if (mainDepth !== 0 || contentStart < 0 || contentEnd < contentStart) {
+  if (elementCount === 0) throw new PolicySourceContentError('missing-main');
+  if (elementDepth !== 0 || contentStart < 0 || contentEnd < contentStart) {
     throw new PolicySourceContentError('malformed-main');
   }
   return html.slice(contentStart, contentEnd);
@@ -656,8 +646,11 @@ function readHtmlTag(html: string, start: number): HtmlTag | undefined {
   return undefined;
 }
 
-function looksLikeMainMarker(html: string, start: number): boolean {
-  return /^<\/?main(?:[\s/>]|$)/iu.test(html.slice(start));
+function looksLikeElementMarker(html: string, start: number, elementName: 'main' | 'body'): boolean {
+  const fragment = html.slice(start);
+  return elementName === 'main'
+    ? /^<\/?main(?:[\s/>]|$)/iu.test(fragment)
+    : /^<\/?body(?:[\s/>]|$)/iu.test(fragment);
 }
 
 function skipRawTextElement(html: string, name: 'script' | 'style', start: number): number | undefined {

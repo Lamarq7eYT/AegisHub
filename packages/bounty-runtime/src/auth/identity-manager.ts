@@ -20,6 +20,19 @@ export interface AuthenticatedUserGateway {
   getAuthenticatedUser(accessToken: string): Promise<unknown>;
 }
 
+export function normalizeAuthenticatedUser(value: unknown): GithubIdentity {
+  if (!isRecord(value)) throw new Error('identity_response_invalid');
+  return githubIdentitySchema.parse({
+    id: value.id,
+    nodeId: value.node_id,
+    login: value.login
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 export interface LoginInput {
   readonly actor: AuthenticatedActor;
   readonly onVerification: (verification: DeviceVerification) => Promise<void> | void;

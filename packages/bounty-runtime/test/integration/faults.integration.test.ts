@@ -178,7 +178,11 @@ function operation(operationId: PlannedOperation['step']['operationId'], actor: 
       actor,
       operationId,
       repositoryId: 3003,
-      parameters: { owner: 'owner-fixture', repo: repositoryName },
+      parameters: operationId.includes('put')
+        ? { owner: 'owner-fixture', repo: repositoryName, message: 'aegishub: verify bounty lab', content: 'e30=' }
+        : operationId.includes('delete')
+          ? { owner: 'owner-fixture', repo: repositoryName, message: 'aegishub: remove bounty lab marker', sha: 'fixture-sha' }
+          : { owner: 'owner-fixture', repo: repositoryName },
       repeatGroup: `fault-${operationId}`
     }
   };

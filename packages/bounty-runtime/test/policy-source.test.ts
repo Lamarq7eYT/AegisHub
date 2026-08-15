@@ -147,6 +147,10 @@ describe('canonicalizePolicyHtml', () => {
     expect(hashCanonicalPolicyHtml(semanticHtml)).toBe(hashCanonicalPolicyHtml(equivalentHtml));
   });
 
+  it('accepts the single body container used by the current official policy pages when main is absent', () => {
+    expect(canonicalizePolicyHtml('<html><body><h1>Rules</h1><p>Keep requests low.</p></body></html>')).toBe('Rules\nKeep requests low.');
+  });
+
   it('normalizes common entities and Unicode NFC equivalently', () => {
     expect(canonicalizePolicyHtml(entityAndNfcHtml)).toBe(
       canonicalizePolicyHtml(entityAndNfcEquivalentHtml)
@@ -186,7 +190,7 @@ describe('canonicalizePolicyHtml', () => {
   });
 
   it.each([
-    ['missing-main', '<html><body><p>Only a shell.</p></body></html>'],
+    ['missing-main', '<html><head><p>Only a shell.</p></head></html>'],
     ['multiple-main', '<main>One</main><main>Two</main>'],
     ['multiple-main', '<main>Outer <main>Inner</main></main>'],
     ['missing-main', '<mainland>Not the selected element</mainland>'],
@@ -560,7 +564,7 @@ describe('fetchPolicySource', () => {
   });
 
   it.each([
-    ['missing main', 200, '<html><body>missing</body></html>', 'missing-main'],
+    ['missing main', 200, '<html><head>missing</head></html>', 'missing-main'],
     ['oversized body', 200, `<main>${'x'.repeat(MAX_POLICY_SOURCE_BODY_BYTES)}</main>`, 'source-too-large']
   ] as const)('returns malformed for %s instead of unavailable', async (_name, status, body, reason) => {
     let cleared = 0;

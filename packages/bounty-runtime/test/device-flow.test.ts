@@ -117,6 +117,25 @@ describe('GitHubDeviceFlowClient', () => {
     }
   });
 
+  it('retains only the safe OAuth error category for structured failures', async () => {
+    const client = new GitHubDeviceFlowClient({
+      clientId: 'fixture-public-client-id',
+      isInteractive: () => true,
+      strategyFactory: () => ({
+        authenticate: async () => {
+          const error = new Error('oauth request failed with synthetic secret ghp_fixture_secret_1234567890') as Error & { response?: { data?: { error?: string } } };
+          error.response = { data: { error: 'device_flow_disabled' } };
+          throw error;
+        }
+      })
+    });
+
+    await expect(client.authenticate('owner', () => undefined)).rejects.toMatchObject({
+      code: 'device_flow_failed',
+      detail: 'device_flow_disabled'
+    });
+  });
+
   it('rejects anonymous as a Device Flow actor', async () => {
     const client = new GitHubDeviceFlowClient({
       clientId: 'fixture-public-client-id',

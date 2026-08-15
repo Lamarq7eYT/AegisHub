@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { GithubIdentity } from '@aegishub/bounty-core';
 
-import { IdentityManager, type AuthenticatedUserGateway } from '../src/auth/identity-manager.js';
+import { IdentityManager, normalizeAuthenticatedUser, type AuthenticatedUserGateway } from '../src/auth/identity-manager.js';
 import { MemoryCredentialVault } from '../src/auth/vault.js';
 
 const ownerIdentity = { id: 1001, nodeId: 'U_owner_fixture', login: 'owner-fixture' } as const;
@@ -34,6 +34,10 @@ function makeGateway(identities: Record<string, GithubIdentity>): AuthenticatedU
 }
 
 describe('IdentityManager', () => {
+  it('normalizes the real GitHub user response without retaining unrelated fields', () => {
+    expect(normalizeAuthenticatedUser({ id: 1001, node_id: 'U_owner_fixture', login: 'owner-fixture', avatar_url: 'https://avatars.invalid/synthetic' })).toEqual(ownerIdentity);
+  });
+
   it('verifies GET /user immediately and stores the session record', async () => {
     const vault = new MemoryCredentialVault();
     const manager = new IdentityManager({

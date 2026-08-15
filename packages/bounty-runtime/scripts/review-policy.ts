@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
-import { dirname, resolve } from 'node:path';
+import { chmod, lstat, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -402,8 +404,51 @@ export async function dispatchReviewPolicyExecutable(
   return execute(createDependencies());
 }
 
-export function createUnimplementedNodeDependencies(): ReviewPolicyCliDependencies {
-  throw new PolicyReviewError('unimplemented_policy_review');
+export function createNodeReviewPolicyDependencies(): ReviewPolicyCliDependencies {
+  return createNodeReviewPolicyCliDependencies({
+    argv: globalThis.process.argv.slice(2),
+    sourceClientDependencies: {
+      fetch: async (url, options) => {
+        const response = await globalThis.fetch(url, {
+          redirect: options.redirect,
+          credentials: options.credentials,
+          headers: options.headers,
+          signal: options.signal as globalThis.AbortSignal
+        });
+        return { status: response.status, text: () => response.text() };
+      },
+      now: () => new Date(),
+      createAbortController: () => new globalThis.AbortController(),
+      setTimeout: (callback, delayMs) => globalThis.setTimeout(callback, delayMs),
+      clearTimeout: (timer) => globalThis.clearTimeout(timer as ReturnType<typeof globalThis.setTimeout>)
+    },
+    readFile: async (path) => {
+      try {
+        return await readFile(path, 'utf8');
+      } catch (error) {
+        if (isMissing(error)) return undefined;
+        throw error;
+      }
+    },
+    writeTemporaryFile: async (directory, contents) => {
+      await mkdir(directory, { recursive: true, mode: 0o700 });
+      const temporaryPath = join(directory, `.github-bug-bounty.v1.${randomUUID()}.tmp`);
+      await writeFile(temporaryPath, contents, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+      await chmod(temporaryPath, 0o600);
+      return temporaryPath;
+    },
+    renameTemporaryFile: async (temporaryPath, destination) => {
+      const info = await lstat(temporaryPath);
+      if (info.isSymbolicLink()) throw new Error('policy_review_symlink_rejected');
+      await rename(temporaryPath, destination);
+      await chmod(destination, 0o600);
+    },
+    writeOutput: (line) => { globalThis.process.stdout.write(`${line}\n`); }
+  });
+}
+
+function isMissing(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT';
 }
 
 export function handleReviewPolicyMainFailure(
@@ -420,6 +465,6 @@ if (isReviewPolicyMain(process.argv[1], import.meta.url)) {
   void dispatchReviewPolicyExecutable(
     process.argv[1],
     import.meta.url,
-    createUnimplementedNodeDependencies
+    createNodeReviewPolicyDependencies
   ).catch(handleReviewPolicyMainFailure);
 }
