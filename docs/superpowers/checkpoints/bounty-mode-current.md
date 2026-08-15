@@ -163,7 +163,13 @@ Focused security regressions passed: bounty-core 131 tests; bounty-runtime integ
 
 The exact monorepo gate was attempted after `pnpm install --frozen-lockfile` succeeded. The root lint, typecheck, test, build, and direct `cargo test --manifest-path packages/core/Cargo.toml` remain blocked by the known sandbox limitation that `cargo` is unavailable. The repository-wide `pnpm exec prettier --check .` also reports formatting differences in 74 existing files; no mass formatting rewrite was applied. No Rust files or existing scanner behavior were changed.
 
-The single pending item is the live gate. It requires an interactive TTY, current policy, a freshly verified marker, an already enrolled directly owner-owned private lab, explicit typed confirmation, and user presence. Resume with `AEGISHUB_BOUNTY_LIVE=1 pnpm --filter @aegishub/bounty-runtime test:live`. The expected acceptance is in the baseline document: in-process Device Flow, owner reads allowed, researcher/anonymous denied, owner repeat allowed, `expected` classification, and sanitized evidence. No credentials may be sent in chat.
+The live gate completed with the user present. The two in-process Device Flows succeeded, the already enrolled directly owner-owned private lab and current policy were verified, and the user explicitly authorized the repository matrícula. Run `352ce099-428a-4fa1-b353-71aafd0a0734` classified `expected` with 10 requests, zero mutations, and `not-required` cleanup. Owner reads succeeded; researcher and anonymous reads were denied with the expected `403`/`404` statuses; no candidate was produced. `AtomicEvidenceWriter.inspect()` returned `verified: true`, including schema, checksum, redaction, and absence-of-secret checks. The sanitized bundle is `.aegishub/runs/352ce099-428a-4fa1-b353-71aafd0a0734`. No credentials were sent in chat.
+
+Phase 1 completion is now recorded in `docs/superpowers/baselines/2026-08-13-bounty-mode-live-gate.md`. The live test remains opt-in with `AEGISHUB_BOUNTY_LIVE=1`; normal non-live runs do not contact GitHub.
+
+## Continuation update — Task 14 live gate completed
+
+The live baseline moved from pending to passed after the final live run. The completion record contains only sanitized operational facts: run ID, result state, request and mutation counts, cleanup state, evidence path, and checksum verification. The repository retains the safety constraints that mutations require an interactive terminal, a journal, and an approval grant; arbitrary URLs remain unavailable; immutable Phase 1 ceilings were not increased; and anomalous outcomes remain candidates for human review only.
 
 ## Commands to resume
 
