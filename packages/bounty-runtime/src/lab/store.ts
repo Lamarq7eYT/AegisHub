@@ -75,6 +75,10 @@ export class LabStore {
     return { sha256 };
   }
 
+  workspaceRoot(): string {
+    return this.#workspaceRoot;
+  }
+
   statePath(...segments: readonly string[]): string {
     if (segments.length === 0 || segments.some((segment) => !isSafeSegment(segment))) {
       throw new LabStoreError('invalid_lab_state_path');

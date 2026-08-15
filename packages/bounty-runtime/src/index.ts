@@ -11,3 +11,6 @@ export * from './transport/rate-limiter.js';
 export * from './transport/guarded-transport.js';
 export * from './experiments/loader.js';
 export * from './experiments/planner.js';
+export * from './experiments/journal.js';
+export * from './experiments/active-run.js';
+export * from './experiments/runner.js';
