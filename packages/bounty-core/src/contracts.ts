@@ -258,6 +258,18 @@ export const operationIdSchema = z
   .string()
   .regex(/^github\.(?:rest|graphql)\.[a-z0-9]+(?:[.-][a-z0-9]+)*$/, 'Invalid operation ID');
 
+export const parameterReferenceSchema = z
+  .object({
+    ref: z.enum([
+      'lab.repository.owner',
+      'lab.repository.name',
+      'lab.repository.defaultBranch',
+      'lab.repository.id',
+      'lab.repository.nodeId'
+    ])
+  })
+  .strict();
+
 const operationParametersSchema = z.record(z.string(), jsonValueSchema);
 
 const baseStepSchema = z
@@ -265,8 +277,9 @@ const baseStepSchema = z
     id: nonEmptyStringSchema,
     operationId: operationIdSchema,
     actor: actorSchema,
-    repositoryId: positiveGithubIdSchema,
-    parameters: operationParametersSchema
+    repositoryId: z.union([positiveGithubIdSchema, parameterReferenceSchema]),
+    parameters: operationParametersSchema,
+    repeatGroup: nonEmptyStringSchema.optional()
   })
   .strict();
 
@@ -305,7 +318,8 @@ export const experimentSchema = z
     normalizationProfile: nonEmptyStringSchema,
     expectation: boundaryExpectationSchema,
     expectedSafeOutcome: nonEmptyStringSchema,
-    anomalyCondition: nonEmptyStringSchema
+    anomalyCondition: nonEmptyStringSchema,
+    purpose: nonEmptyStringSchema.optional()
   })
   .strict();
 
@@ -483,6 +497,7 @@ export type PolicySourceStatus = z.infer<typeof policySourceStatusSchema>;
 export type PolicyStatus = z.infer<typeof policyStatusSchema>;
 export type OperationId = z.infer<typeof operationIdSchema>;
 export type OperationStep = z.infer<typeof operationStepSchema>;
+export type ParameterReference = z.infer<typeof parameterReferenceSchema>;
 export type BoundaryExpectation = z.infer<typeof boundaryExpectationSchema>;
 export type Experiment = z.infer<typeof experimentSchema>;
 export type PlannedOperation = z.infer<typeof plannedOperationSchema>;

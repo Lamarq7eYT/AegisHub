@@ -253,7 +253,7 @@ export function classifyRun(input: DifferentialInput): DifferentialResult {
   if (input.ineligibleClasses.length > 0) {
     return {
       state: 'inconclusive',
-      reason: 'known_ineligible_class',
+      reason: input.ineligibleClasses.includes('precondition_not_met') ? 'precondition_not_met' : 'known_ineligible_class',
       diff: makeDiff(normalized, 'inconclusive', 'A typed ineligible classification was present.', ['policy'])
     };
   }

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
-import { sha256StableJson, type Experiment } from '@aegishub/bounty-core';
+import { sha256StableJson, type Experiment, type JsonValue } from '@aegishub/bounty-core';
 
 import { ExperimentLoader, ExperimentLoaderError } from '../src/experiments/loader.js';
 
@@ -110,7 +110,7 @@ describe('ExperimentLoader', () => {
 
     expect(yaml.experiment).toEqual(json.experiment);
     expect(yaml.sha256).toBe(json.sha256);
-    expect(yaml.sha256).toBe(sha256StableJson(experiment()));
+    expect(yaml.sha256).toBe(sha256StableJson(experiment() as unknown as JsonValue));
   });
 
   it.each([

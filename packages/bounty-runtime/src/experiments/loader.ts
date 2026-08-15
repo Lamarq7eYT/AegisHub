@@ -8,6 +8,7 @@ import {
   sha256StableJson,
   stableJson,
   validateOperationParameters,
+  parameterReferenceSchema,
   type Experiment,
   type JsonValue
 } from '@aegishub/bounty-core';
@@ -48,6 +49,10 @@ export class ExperimentLoader {
     this.#runtimeRoot = resolve(options.runtimeRoot);
   }
 
+  async loadBuiltIn(id: 'repo.private.contents-read-boundary.v1'): Promise<LoadedExperiment> {
+    return this.load(join(this.#runtimeRoot, 'experiments', `${id}.yaml`));
+  }
+
   async load(path: string): Promise<LoadedExperiment> {
     const absolutePath = this.resolveAllowedPath(path);
     await this.rejectSymlinkPath(absolutePath);
@@ -59,20 +64,50 @@ export class ExperimentLoader {
     }
     if (bytes.byteLength > MAX_EXPERIMENT_BYTES) throw new ExperimentLoaderError('experiment_too_large');
     const text = new globalThis.TextDecoder().decode(bytes);
-    const value = this.parse(text, absolutePath.endsWith('.json'));
+    const value = this.normalize(this.parse(text, absolutePath.endsWith('.json')));
     const parsed = experimentSchema.safeParse(value);
     if (!parsed.success) throw new ExperimentLoaderError('invalid_experiment');
     for (const step of parsed.data.steps) {
       try {
         const descriptorIsVisible = isExperimentOperation(step.operationId as never);
         if (!descriptorIsVisible) throw new Error('operation_not_experiment_visible');
-        validateOperationParameters(step.operationId as never, step.parameters);
+        const validationParameters = Object.fromEntries(Object.entries(step.parameters).map(([key, parameter]) => [
+          key,
+          parameterReferenceSchema.safeParse(parameter).success ? '__typed_reference__' : parameter
+        ]));
+        validateOperationParameters(step.operationId as never, validationParameters);
       } catch {
         throw new ExperimentLoaderError('invalid_experiment');
       }
     }
-    const json = JSON.parse(stableJson(parsed.data)) as JsonValue;
+    const json = JSON.parse(stableJson(parsed.data as unknown as JsonValue)) as JsonValue;
     return { experiment: parsed.data, sha256: sha256StableJson(json), path: absolutePath };
+  }
+
+  private normalize(value: unknown): unknown {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new ExperimentLoaderError('invalid_experiment');
+    const source = value as Record<string, unknown>;
+    const rawSteps = source.steps;
+    if (!Array.isArray(rawSteps)) throw new ExperimentLoaderError('invalid_experiment');
+    const steps = rawSteps.map((rawStep) => {
+      if (rawStep === null || typeof rawStep !== 'object' || Array.isArray(rawStep)) throw new ExperimentLoaderError('invalid_experiment');
+      const step = rawStep as Record<string, unknown>;
+      const parameters = step.parameters ?? step.params;
+      const repositoryId = step.repositoryId ?? { ref: 'lab.repository.id' };
+      if (parameters === undefined) throw new ExperimentLoaderError('invalid_experiment');
+      const normalizedStep = { ...step };
+      delete normalizedStep.params;
+      return { ...normalizedStep, parameters, repositoryId };
+    });
+    const ineligibleCategoryChecks = source.ineligibleCategoryChecks ?? source.ineligibleChecks ?? [];
+    const requiredLabCapabilities = source.requiredLabCapabilities ?? source.requiredCapabilities ?? [];
+    const rest = { ...source };
+    delete rest.params;
+    delete rest.ineligibleChecks;
+    delete rest.requiredCapabilities;
+    delete rest.actorRelationships;
+    delete rest.expectedBoundary;
+    return { ...rest, ineligibleCategoryChecks, requiredLabCapabilities, steps };
   }
 
   private resolveAllowedPath(path: string): string {

@@ -5,6 +5,7 @@ import { resolveCatalogOperation } from '../transport/operation-catalog.js';
 import {
   createApprovalFingerprint,
   getOperationDescriptor,
+  parameterReferenceSchema,
   type Experiment,
   type ExperimentPlan as CoreExperimentPlan,
   type LabManifest,
@@ -58,7 +59,11 @@ export class PlannerError extends Error {
 
 const phaseOrder = new Map(['setup', 'baseline', 'probe', 'verify', 'repeat', 'cleanup'].map((phase, index) => [phase, index] as const));
 const allowedCapabilities = new Set(['private-repository']);
-const familyByNormalization = new Map([['repository-v1', 'repository-read-boundary'], ['marker-read-v1', 'repository-read-boundary']]);
+const familyByNormalization = new Map([
+  ['repository-v1', 'repository-read-boundary'],
+  ['marker-read-v1', 'repository-read-boundary'],
+  ['github-private-marker-v1', 'repository-read-boundary']
+]);
 
 export class ExperimentPlanner {
   plan(input: PlanExperimentInput): ExperimentPlan {
@@ -79,12 +84,15 @@ export class ExperimentPlanner {
     this.assertPhaseOrder(experiment);
     this.assertRepeatRequirements(experiment);
 
-    const repository = manifest.repositories.find((candidate) => candidate.fullName === experiment.scopeTarget);
+    const repository = experiment.scopeTarget === 'github.com'
+      ? manifest.repositories[0]
+      : manifest.repositories.find((candidate) => candidate.fullName === experiment.scopeTarget);
     if (repository === undefined) throw new PlannerError('planner_repository_mismatch');
     const operations: PlannedExperimentOperation[] = [];
     let mutationCount = 0;
     for (const [ordinal, step] of experiment.steps.entries()) {
-      if (step.repositoryId !== repository.id) throw new PlannerError('planner_repository_mismatch');
+      const repositoryId = resolveRepositoryId(step.repositoryId, repository.id);
+      if (repositoryId !== repository.id) throw new PlannerError('planner_repository_mismatch');
       const descriptor = getOperationDescriptor(step.operationId as never);
       if (descriptor.classification === 'mutation') {
         mutationCount += 1;
@@ -94,7 +102,7 @@ export class ExperimentPlanner {
         try {
           return resolveCatalogOperation({
             operationId: step.operationId as never,
-            parameters: step.parameters,
+            parameters: resolveParameters(step.parameters, repository),
             context: {
               purpose: 'experiment',
               actor: step.actor,
@@ -162,6 +170,38 @@ export class ExperimentPlanner {
       throw new PlannerError('planner_repeat_requirement');
     }
   }
+}
+
+function resolveRepositoryId(value: unknown, expectedId: number): number {
+  if (typeof value === 'number') return value;
+  const parsed = parameterReferenceSchema.safeParse(value);
+  if (!parsed.success || parsed.data.ref !== 'lab.repository.id') throw new PlannerError('planner_repository_mismatch');
+  return expectedId;
+}
+
+function resolveParameters(parameters: Record<string, import('@aegishub/bounty-core').JsonValue>, repository: LabManifest['repositories'][number]): Record<string, import('@aegishub/bounty-core').JsonValue> {
+  const ownerAndName = repository.fullName.split('/');
+  const owner = ownerAndName[0];
+  const name = ownerAndName[1];
+  if (owner === undefined || name === undefined) throw new PlannerError('planner_repository_mismatch');
+  const resolved: Record<string, import('@aegishub/bounty-core').JsonValue> = {};
+  for (const [key, value] of Object.entries(parameters)) {
+    const reference = parameterReferenceSchema.safeParse(value);
+    if (!reference.success) {
+      resolved[key] = value;
+      continue;
+    }
+    const replacement: import('@aegishub/bounty-core').JsonValue | undefined = {
+      'lab.repository.owner': owner,
+      'lab.repository.name': name,
+      'lab.repository.defaultBranch': 'main',
+      'lab.repository.id': repository.id,
+      'lab.repository.nodeId': repository.nodeId
+    }[reference.data.ref];
+    if (replacement === undefined) throw new PlannerError('planner_invalid_input');
+    resolved[key] = replacement;
+  }
+  return resolved;
 }
 
 function deepFreeze<T>(value: T): T {

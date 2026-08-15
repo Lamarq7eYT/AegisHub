@@ -1,0 +1,144 @@
+schemaVersion: 1
+id: repo.private.contents-read-boundary.v1
+version: 1
+title: Private repository contents read boundary
+researchQuestion: Can an untrusted actor read the verified lab marker from a private repository?
+expectedBoundary: Only the verified owner can read private lab repository metadata and marker content.
+scopeTarget: github.com
+ineligibleChecks:
+  - no-third-party-target
+  - no-user-repository-vulnerability-claim
+  - no-availability-impact
+requiredCapabilities:
+  - private-repository
+actorRelationships:
+  - distinct-authenticated-users
+  - researcher-has-no-repository-access
+budgets:
+  concurrency: 1
+  requestsPerSecond: 1
+  burst: 2
+  maxRequests: 12
+  maxMutations: 0
+  timeoutMs: 20000
+  maxReadRetries: 2
+  maxMutationRetries: 0
+steps:
+  - id: owner-repository-baseline
+    phase: baseline
+    actor: owner
+    operationId: github.rest.repos.get.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: owner-repository
+  - id: owner-marker-baseline
+    phase: baseline
+    actor: owner
+    operationId: github.rest.contents.get-lab-marker.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: owner-marker
+  - id: researcher-repository-probe
+    phase: probe
+    actor: researcher
+    operationId: github.rest.repos.get.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: researcher-repository
+  - id: researcher-marker-probe-1
+    phase: probe
+    actor: researcher
+    operationId: github.rest.contents.get-lab-marker.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: researcher-marker
+  - id: anonymous-repository-probe
+    phase: probe
+    actor: anonymous
+    operationId: github.rest.repos.get.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: anonymous-repository
+  - id: anonymous-marker-probe-1
+    phase: probe
+    actor: anonymous
+    operationId: github.rest.contents.get-lab-marker.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: anonymous-marker
+  - id: researcher-marker-probe-2
+    phase: repeat
+    actor: researcher
+    operationId: github.rest.contents.get-lab-marker.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: researcher-marker
+  - id: anonymous-marker-probe-2
+    phase: repeat
+    actor: anonymous
+    operationId: github.rest.contents.get-lab-marker.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: anonymous-marker
+  - id: owner-repository-repeat
+    phase: repeat
+    actor: owner
+    operationId: github.rest.repos.get.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: owner-repository
+  - id: owner-marker-repeat
+    phase: repeat
+    actor: owner
+    operationId: github.rest.contents.get-lab-marker.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: owner-marker
+expectation:
+  kind: access-boundary
+  ownerSuccessStatuses:
+    - 200
+  untrustedDeniedStatuses:
+    - 403
+    - 404
+  protectedFields:
+    - marker.schemaVersion
+    - marker.labId
+    - marker.repositoryId
+    - marker.owner.id
+  requireOwnerRepeat: true
+  minimumConsistentUntrustedAttempts: 2
+normalizationProfile: github-private-marker-v1
+expectedSafeOutcome: Owner reads succeed and untrusted reads disclose no protected marker field.
+anomalyCondition: The same untrusted actor receives protected marker data in at least two consistent attempts.
+purpose: Framework validation against a known-safe private repository boundary; not expected to discover a vulnerability.
