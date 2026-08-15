@@ -8,6 +8,8 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    env:
+      AEGISHUB_BOUNTY_LIVE: "0"
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

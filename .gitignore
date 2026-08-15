@@ -2,6 +2,7 @@ node_modules/
 dist/
 coverage/
 .turbo/
+.worktrees/
 .env
 .env.*
 !.env.example
@@ -11,3 +12,6 @@ pkg/
 *.log
 aegishub-report.json
 github-scan-report.json
+
+# Bounty Mode local manifests, journals, leases, dirty state and evidence bundles
+.aegishub/

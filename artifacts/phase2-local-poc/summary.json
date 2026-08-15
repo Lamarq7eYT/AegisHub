@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "scope": "loopback-fake-server-only",
+  "generatedAt": "2026-08-15T20:00:00.000Z",
+  "results": [
+    {
+      "mode": "safe",
+      "result": "expected",
+      "requestCount": 5,
+      "mutationCount": 0,
+      "cleanupStatus": "not-required",
+      "candidate": false,
+      "protectedUntrustedObservations": 0,
+      "stoppedBeforeFollowUp": false
+    },
+    {
+      "mode": "bypass",
+      "result": "anomalous",
+      "reason": "candidate_stop",
+      "requestCount": 4,
+      "mutationCount": 0,
+      "cleanupStatus": "not-required",
+      "candidate": true,
+      "candidateReproductionCount": 2,
+      "protectedUntrustedObservations": 2,
+      "stoppedBeforeFollowUp": true
+    }
+  ],
+  "noSeverityClaim": true,
+  "noLiveExecution": true
+}

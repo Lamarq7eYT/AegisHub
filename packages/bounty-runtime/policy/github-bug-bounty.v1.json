@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "github-bounty-2026-08-13.1",
+  "enforcementSha256": "4b04d69813ce29040452bbb7d4fd096e1015b13d900809af1521f7650bcac4c0",
+  "sources": [
+    {
+      "id": "rules",
+      "url": "https://bounty.github.com/rules.html",
+      "retrievedAt": "2026-08-15T17:27:29.584Z",
+      "contentSha256": "65923ed99763cc6317ec77f4e7837a13479ddb1f5074815b29222bad56221f47"
+    },
+    {
+      "id": "scope",
+      "url": "https://bounty.github.com/scope.html",
+      "retrievedAt": "2026-08-15T17:27:29.748Z",
+      "contentSha256": "37b911c551efbcefd5d69209579896e5a05118b9660fda19e73975b209f09e04"
+    },
+    {
+      "id": "targets",
+      "url": "https://bounty.github.com/targets.html",
+      "retrievedAt": "2026-08-15T17:27:29.795Z",
+      "contentSha256": "f2bf45539adf96577b79369e3f6dcbe5fd1cc64da8c8ab29da782609f8146b75"
+    },
+    {
+      "id": "ineligible",
+      "url": "https://bounty.github.com/ineligible.html",
+      "retrievedAt": "2026-08-15T17:27:29.851Z",
+      "contentSha256": "c87712691d32c773968ae5768788a0027b9b8d9fa3e786f51f2d37ea6735a724"
+    },
+    {
+      "id": "rewards",
+      "url": "https://bounty.github.com/rewards.html",
+      "retrievedAt": "2026-08-15T17:27:29.906Z",
+      "contentSha256": "c509f1f4153d042025f77cc9dbf1435333adf408227d0341c473d4a09e499849"
+    }
+  ],
+  "rulesOfEngagement": [
+    "Test only GitHub-operated services and in-scope targets using accounts and resources controlled by the researcher.",
+    "Do not perform social engineering, phishing, physical attacks, DDoS, spam, large-scale scanning, scraping, or excessive traffic.",
+    "Do not intentionally access another person’s PII; limit returned data and stop immediately on suspected exposure.",
+    "Keep reports private, include clear reproduction steps, and do not publicly disclose before a fix is available."
+  ],
+  "inScopeTargets": [
+    "github.com",
+    "githubassets.com",
+    "githubusercontent.com",
+    "githubapp.com",
+    "githubwebhooks.net",
+    "github.net",
+    "npmjs.com",
+    "npmjs.org",
+    "GitHub CLI",
+    "GitHub Desktop",
+    "GitHub Mobile",
+    "GitHub Enterprise Server",
+    "GitHub Enterprise Cloud"
+  ],
+  "ineligibleCategories": [
+    "vulnerabilities in repositories hosted on GitHub",
+    "network denial of service and volumetric attacks",
+    "lack of rate limiting",
+    "email and username enumeration",
+    "local access vulnerabilities",
+    "upstream dependency vulnerabilities",
+    "prompt injection without concrete security impact",
+    "credentials exposed by GitHub users",
+    "GitHub Pages hosted-content vulnerabilities",
+    "host header injection without specific security impact"
+  ],
+  "severityReferences": [
+    "https://bounty.github.com/rewards.html"
+  ],
+  "reviewedAt": "2026-08-15T17:28:00.005Z"
+}

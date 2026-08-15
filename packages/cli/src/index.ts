@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import { Command } from 'commander';
 import ora from 'ora';
+import { registerBountyCommands } from './bounty/register-bounty-command.js';
 
 type Severity = 'Critical' | 'High' | 'Medium' | 'Low' | 'Info';
 
@@ -164,6 +165,8 @@ program
     console.log('bash/zsh:');
     console.log('export GITHUB_TOKEN="your_token_here"');
   });
+
+registerBountyCommands(program);
 
 program.parseAsync().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : 'Unknown CLI error';
