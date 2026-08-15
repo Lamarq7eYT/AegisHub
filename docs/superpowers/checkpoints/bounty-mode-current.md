@@ -3,10 +3,9 @@
 ## Branch and HEAD
 
 - Branch: `codex/bounty-mode-foundation`
-- HEAD: `77fca04745c7397ebbbb2ea04fa66b3c728ebba7`
-- Commit: `feat(bounty): add deterministic safety and diff engines`
-- Checkpoint timestamp: `2026-08-15T00:16:59Z` (2026-08-14 21:16:59, user timezone GMT-3)
-- Worktree at checkpoint creation: clean; branch is ahead of `origin/codex/bounty-mode-foundation` by one commit.
+- HEAD at completion-gate artifact creation: `f157cd9` (`chore(bounty): record pending live gate baseline`)
+- Checkpoint timestamp: `2026-08-15T02:30:00Z` (2026-08-14 23:30:00, user timezone GMT-3)
+- Worktree before this checkpoint update: clean; the checkpoint update commit follows the artifact commit and is ready to publish with it.
 
 ## Audit before continuation
 
@@ -81,9 +80,9 @@ Task 4 is complete. Authentication uses session-only credentials by default, exp
 
 ## Next continuation point
 
-Continue with **Task 14 — Step 1: perform the completion gate and acceptance review**. Inspect forbidden constructs, formatter/diff integrity, focused security regressions, full non-live gates and record the user-presence live validation as pending. The completed Task 13 commit is recorded below.
+Task 14 completion-gate work is recorded below. The implementation is ready for handoff except for the single user-presence live validation. Do not claim criterion 10 or full Phase 1 completion until the user-owned lab gate actually succeeds.
 
-Before claiming Phase 1 completion, continue Task by Task through the remaining plan, keep this checkpoint current after every completed Task, run all non-live verification gates, and record the live gate as pending unless the user-owned lab is explicitly available and verified. Never request or store passwords, cookies, 2FA codes, access tokens, refresh tokens, or reserve-account credentials in chat or fixtures.
+Never request or store passwords, cookies, 2FA codes, access tokens, refresh tokens, or reserve-account credentials in chat or fixtures.
 
 ## Continuation update — 2026-08-15
 
@@ -153,6 +152,18 @@ Task 12 verification: the full runtime suite passed 232 tests; loopback integrat
 Task 13 is complete in commit `78843ab docs(bounty): document safe lab operation`. It adds the local `.aegishub/` exclusion while keeping `.aegishub-lab.json` trackable, a non-secret `.env.example`, the complete `docs/BOUNTY_MODE.md` operator guide, explicit Bounty Mode ownership and safety boundaries in the architecture and security documentation, README package/roadmap links, and a job-level `AEGISHUB_BOUNTY_LIVE: "0"` CI environment. The guide documents Device Flow, expiring tokens, session-only versus `--persist`, all supported commands, fixed budgets, stop conditions, dirty recovery, bundle fields, redaction, responsible disclosure and the pending live gate.
 
 Task 13 verification: the documented CLI build and all six non-live `bounty ... --help`/help-list commands passed; `git diff --check` passed before commit. The worktree was clean at commit creation and the branch is ahead of origin by one commit. The live gate remains pending because it requires user presence and an already verified owned lab.
+
+## Continuation update — Task 14 completion gate
+
+Task 14 completion-gate artifacts are recorded in commit `f157cd9 chore(bounty): record pending live gate baseline`. The commit adds `docs/superpowers/baselines/2026-08-13-bounty-mode-live-gate.md` and removes four verified trailing-whitespace defects from the approved design spec. The GitHub App workflow permission was reauthorized and the previously blocked commits through `bebea48` were pushed to `origin/codex/bounty-mode-foundation`.
+
+The forbidden-construct scan found no unfinished production markers, no shell or dynamic-code execution, and no arbitrary network call. The remaining matches are the fixed `https://api.github.com` catalog origin, fixed policy documentation URLs, the fixed `/user` identity lookup, a normal `RegExp.exec`, typed authentication fields, and a redaction-only credential-pattern guard. `git diff --check main` passes and the worktree was clean before this checkpoint update.
+
+Focused security regressions passed: bounty-core 131 tests; bounty-runtime integration 19 tests; CLI bounty and legacy regression tests 10 tests. Package completion gates also passed: bounty-core tests/lint/typecheck/build; bounty-runtime tests/lint/typecheck/build; and CLI tests/lint/typecheck/build. Lint completed with non-fatal security-rule warnings and zero errors.
+
+The exact monorepo gate was attempted after `pnpm install --frozen-lockfile` succeeded. The root lint, typecheck, test, build, and direct `cargo test --manifest-path packages/core/Cargo.toml` remain blocked by the known sandbox limitation that `cargo` is unavailable. The repository-wide `pnpm exec prettier --check .` also reports formatting differences in 74 existing files; no mass formatting rewrite was applied. No Rust files or existing scanner behavior were changed.
+
+The single pending item is the live gate. It requires an interactive TTY, current policy, a freshly verified marker, an already enrolled directly owner-owned private lab, explicit typed confirmation, and user presence. Resume with `AEGISHUB_BOUNTY_LIVE=1 pnpm --filter @aegishub/bounty-runtime test:live`. The expected acceptance is in the baseline document: in-process Device Flow, owner reads allowed, researcher/anonymous denied, owner repeat allowed, `expected` classification, and sanitized evidence. No credentials may be sent in chat.
 
 ## Commands to resume
 
