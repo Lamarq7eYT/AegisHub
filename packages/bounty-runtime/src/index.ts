@@ -6,3 +6,6 @@ export * from './auth/device-flow.js';
 export * from './auth/identity-manager.js';
 export * from './lab/store.js';
 export * from './lab/verifier.js';
+export * from './transport/operation-catalog.js';
+export * from './transport/rate-limiter.js';
+export * from './transport/guarded-transport.js';

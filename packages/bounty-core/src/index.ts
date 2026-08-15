@@ -1,5 +1,6 @@
 export * from './contracts.js';
 export * from './policy.js';
+export * from './catalog.js';
 export * from './stable-json.js';
 export * from './budget.js';
 export * from './redaction.js';
