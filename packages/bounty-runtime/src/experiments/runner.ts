@@ -298,7 +298,7 @@ export class ExperimentRunner {
       observations.push(observation);
       if (observation.outOfLab) throw Object.assign(new Error('out_of_lab_resource'), { code: 'out_of_lab_resource' });
       await journal.markObserved(entryId, observation.observationId);
-      const verification = await (input.verifyMutation?.(operation, signal) ?? Promise.resolve({ applied: true, evidenceId: observation.observationId }));
+      const verification = await (input.verifyMutation?.(operation, signal) ?? Promise.resolve({ applied: observation.status >= 200 && observation.status < 300, evidenceId: observation.observationId }));
       if (verification.applied) {
         await journal.markVerifiedApplied(entryId, verification.evidenceId);
         return 'applied';
@@ -390,18 +390,16 @@ export class ExperimentRunner {
     forcedReason: string | undefined,
     recovery: ReturnType<ActiveRunLease['recovery']>
   ): CompletedRun {
-    const differential = forcedResult === undefined
-      ? classifyRun({
-        observations: observations.map(toDifferentialObservation),
-        expectation: input.expectation,
-        policy: { allowed: true },
-        cleanupStatus,
-        independentVerification: true,
-        impact: input.impact,
-        ineligibleClasses: input.ineligibleClasses
-      })
-      : undefined;
-    const result = forcedResult ?? differential?.state ?? 'inconclusive';
+    const differential = classifyRun({
+      observations: observations.map(toDifferentialObservation),
+      expectation: input.expectation,
+      policy: { allowed: true },
+      cleanupStatus,
+      independentVerification: true,
+      impact: input.impact,
+      ineligibleClasses: input.ineligibleClasses
+    });
+    const result = forcedResult ?? differential.state;
     const manifest: RunManifest = {
       schemaVersion: 1,
       runId: input.runId,
@@ -420,8 +418,8 @@ export class ExperimentRunner {
     return {
       manifest,
       observations: [...observations],
-      ...(differential?.diff === undefined ? {} : { diff: differential.diff }),
-      ...(differential?.candidate === undefined ? {} : { candidate: differential.candidate }),
+      ...(differential.diff === undefined ? {} : { diff: differential.diff }),
+      ...(forcedResult !== undefined || differential.candidate === undefined ? {} : { candidate: differential.candidate }),
       ...(reason === undefined ? {} : { reason }),
       cleanupStatus,
       recovery

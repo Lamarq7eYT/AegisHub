@@ -184,6 +184,11 @@ function makeDiff(
   };
 }
 
+function isVerifiedIntegritySideEffect(observation: DifferentialObservation): boolean {
+  if (observation.verifiedSideEffect === undefined || typeof observation.verifiedSideEffect !== 'object' || observation.verifiedSideEffect === null || Array.isArray(observation.verifiedSideEffect)) return false;
+  return observation.verifiedSideEffect.applied === true;
+}
+
 function makeCandidate(
   observations: readonly DifferentialObservation[],
   expectation: BoundaryExpectation,
@@ -315,6 +320,31 @@ export function classifyRun(input: DifferentialInput): DifferentialResult {
       ),
       candidate
     };
+  }
+
+  const verifiedIntegrity = normalized.find((observation) => observation.actor !== 'owner' && isVerifiedIntegritySideEffect(observation));
+  if (
+    verifiedIntegrity !== undefined &&
+    ownerRepeat !== undefined &&
+    input.independentVerification &&
+    input.impact.kind === 'integrity' &&
+    input.impact.labOwned &&
+    (input.cleanupStatus === 'complete' || input.cleanupStatus === 'not-required')
+  ) {
+    const ownerConfirmation = ownerRepeat[ownerRepeat.length - 1];
+    if (ownerConfirmation !== undefined) {
+      const candidate = makeCandidate([verifiedIntegrity, ownerConfirmation], input.expectation, input.impact);
+      return {
+        state: 'anomalous',
+        diff: makeDiff(
+          normalized,
+          'anomalous',
+          'A verified untrusted mutation crossed the declared integrity boundary and was confirmed by the owner.',
+          ['authorization-boundary', 'integrity-boundary', 'repeat-consistency']
+        ),
+        candidate
+      };
+    }
   }
 
   if (untrustedObservations.length === 0) {

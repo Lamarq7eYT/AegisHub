@@ -1,0 +1,97 @@
+schemaVersion: 1
+id: repo.private.workflow-write-boundary.v1
+version: 1
+title: Private workflow-file write authorization boundary
+researchQuestion: Can an untrusted authenticated user update a workflow file in the verified private lab with a user token that lacks effective repository authorization?
+expectedBoundary: Only the verified owner may update the fixed harmless workflow probe; untrusted actors must be denied.
+scopeTarget: github.com
+ineligibleChecks:
+  - no-third-party-target
+  - no-secret-access
+  - no-workflow-execution
+  - no-availability-impact
+  - no-cosmetic-difference
+  - no-arbitrary-content
+requiredCapabilities:
+  - private-repository
+actorRelationships:
+  - distinct-authenticated-users
+  - researcher-has-no-repository-access
+budgets:
+  concurrency: 1
+  requestsPerSecond: 1
+  burst: 1
+  maxRequests: 5
+  maxMutations: 1
+  timeoutMs: 20000
+  maxReadRetries: 0
+  maxMutationRetries: 0
+steps:
+  - id: owner-marker-baseline
+    phase: baseline
+    actor: owner
+    operationId: github.rest.contents.get-lab-marker.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: owner-marker
+  - id: researcher-workflow-write
+    phase: probe
+    actor: researcher
+    operationId: github.rest.actions.put-lab-workflow-probe.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+      message: "aegishub: verify workflow permission boundary"
+      content: eA==
+    repeatGroup: researcher-workflow-write
+  - id: owner-marker-repeat
+    phase: repeat
+    actor: owner
+    operationId: github.rest.contents.get-lab-marker.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: owner-marker
+  - id: anonymous-marker-probe-1
+    phase: probe
+    actor: anonymous
+    operationId: github.rest.contents.get-lab-marker.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: anonymous-marker
+  - id: anonymous-marker-probe-2
+    phase: probe
+    actor: anonymous
+    operationId: github.rest.contents.get-lab-marker.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: anonymous-marker
+expectation:
+  kind: access-boundary
+  ownerSuccessStatuses:
+    - 200
+  untrustedDeniedStatuses:
+    - 403
+    - 404
+  protectedFields:
+    - verifiedSideEffect.applied
+    - workflow-file
+  requireOwnerRepeat: true
+  minimumConsistentUntrustedAttempts: 2
+normalizationProfile: workflow-mutation-v1
+expectedSafeOutcome: The researcher workflow mutation is denied, the owner marker remains readable, and no workflow is executed or secret is accessed.
+anomalyCondition: The researcher receives a successful fixed workflow-file write response with a verified side effect in the owner-controlled private lab.
+purpose: Low-volume owner-lab-only workflow permission-boundary check; candidate-stop applies before any follow-up operation.

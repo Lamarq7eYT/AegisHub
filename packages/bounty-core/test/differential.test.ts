@@ -24,7 +24,7 @@ function makeObservation(
   status: number,
   body: JsonValue,
   repeatGroup: string,
-  options: Partial<Pick<DifferentialObservation, 'protectedData' | 'outOfLab' | 'errorClass'>> = {}
+  options: Partial<Pick<DifferentialObservation, 'protectedData' | 'outOfLab' | 'errorClass' | 'verifiedSideEffect'>> = {}
 ): DifferentialObservation {
   const observation: DifferentialObservation = {
     schemaVersion: 1,
@@ -48,7 +48,8 @@ function makeObservation(
     catalogVersion: '1.1.0',
     repeatGroup,
     protectedData: options.protectedData ?? false,
-    outOfLab: options.outOfLab ?? false
+    outOfLab: options.outOfLab ?? false,
+    ...(options.verifiedSideEffect === undefined ? {} : { verifiedSideEffect: options.verifiedSideEffect })
   };
   const errorClass = options.errorClass ?? (status >= 500 ? 'transient-server' : undefined);
   return errorClass === undefined ? observation : { ...observation, errorClass };
@@ -176,6 +177,22 @@ describe('classifyRun', () => {
 
     expect(result.state).not.toBe('anomalous');
     expect(result.candidate).toBeUndefined();
+  });
+
+  it('classifies a verified untrusted content write as an integrity candidate only after owner confirmation', () => {
+    const result = classifyRun({
+      ...baseInput([
+        makeObservation('00000000-0000-4000-8000-000000000051', 'owner', 200, { marker: 'owner' }, 'owner-marker'),
+        makeObservation('00000000-0000-4000-8000-000000000052', 'researcher', 201, { commit: { sha: 'fixture-commit' } }, 'researcher-write', { verifiedSideEffect: { kind: 'repository-content-write', applied: true } }),
+        makeObservation('00000000-0000-4000-8000-000000000053', 'owner', 200, { marker: 'owner' }, 'owner-marker')
+      ]),
+      independentVerification: true,
+      impact: { kind: 'integrity', summary: 'Synthetic lab-owned content was modified by an untrusted actor.', labOwned: true }
+    });
+
+    expect(result.state).toBe('anomalous');
+    expect(result.candidate).toMatchObject({ reproductionCount: 2, crossedBoundary: 'access-boundary' });
+    expect(result.diff?.dimensions).toContain('integrity-boundary');
   });
 
   it('requires repeated protected data before producing a candidate', () => {

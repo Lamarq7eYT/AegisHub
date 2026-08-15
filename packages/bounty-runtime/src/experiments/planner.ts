@@ -62,7 +62,8 @@ const allowedCapabilities = new Set(['private-repository']);
 const familyByNormalization = new Map([
   ['repository-v1', 'repository-read-boundary'],
   ['marker-read-v1', 'repository-read-boundary'],
-  ['github-private-marker-v1', 'repository-read-boundary']
+  ['github-private-marker-v1', 'repository-read-boundary'],
+  ['workflow-mutation-v1', 'repository-write-boundary']
 ]);
 
 export class ExperimentPlanner {

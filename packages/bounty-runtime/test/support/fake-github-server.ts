@@ -45,6 +45,7 @@ export class FakeGithubServer {
   #fault: FakeGithubFault | undefined;
   #port: number | undefined;
   #marker = false;
+  #workflowProbe = false;
   #repositoryId = 3003;
   #repositoryName = 'lab-fixture';
   #repositoryNodeId = 'R_lab';
@@ -86,6 +87,10 @@ export class FakeGithubServer {
 
   get markerPresent(): boolean {
     return this.#marker;
+  }
+
+  get workflowProbePresent(): boolean {
+    return this.#workflowProbe;
   }
 
   get repositoryId(): number {
@@ -137,7 +142,7 @@ export class FakeGithubServer {
   private async handle(request: IncomingMessage, response: ServerResponse): Promise<void> {
     const body = await readBody(request);
     const actor = this.actorFromAuthorization(request.headers.authorization);
-    const operationId = typeof request.headers['x-aegishub-operation-id'] === 'string' ? request.headers['x-aegishub-operation-id'] : operationIdForPath(request.url ?? '');
+    const operationId = typeof request.headers['x-aegishub-operation-id'] === 'string' ? request.headers['x-aegishub-operation-id'] : operationIdForPath(request.url ?? '', request.method ?? 'GET');
     this.#requests.push({ operationId, method: request.method ?? 'GET', path: request.url ?? '/', actor, bodySha256: sha256(body) });
 
     if (request.url === '/login/device' && request.method === 'POST') {
@@ -177,6 +182,7 @@ export class FakeGithubServer {
 
     const repositoryPath = `/repos/owner-fixture/${this.#repositoryName}`;
     const markerPath = `${repositoryPath}/contents/.aegishub-lab.json`;
+    const workflowPath = `${repositoryPath}/contents/.github/workflows/aegishub-boundary-probe.yml`;
     if (request.url === repositoryPath && request.method === 'GET') {
       if (actor === 'owner' || this.#bypass) return sendJson(response, 200, { id: this.#repositoryId, node_id: this.#repositoryNodeId, private: true, permissions: { pull: actor === 'owner' } });
       return sendJson(response, 404, { message: 'not found' });
@@ -210,17 +216,36 @@ export class FakeGithubServer {
     }
 
     if (request.url === markerPath && request.method === 'PUT') {
+      if (actor !== 'owner' && !this.#bypass) return sendJson(response, actor === 'researcher' ? 403 : 404, { message: 'not authorized' });
       this.#marker = true;
       if (this.#fault === 'drop-after-mutation') {
         response.destroy();
         return;
       }
-      return sendJson(response, 201, { content: { sha: 'a'.repeat(40) } });
+      return sendJson(response, 201, { content: { sha: 'a'.repeat(40) }, commit: { sha: 'fixture-commit' } });
     }
 
     if (request.url === markerPath && request.method === 'DELETE') {
       if (this.#fault === 'cleanup-failure') return sendJson(response, 500, { message: 'cleanup failed' });
+      if (actor !== 'owner' && !this.#bypass) return sendJson(response, actor === 'researcher' ? 403 : 404, { message: 'not authorized' });
       this.#marker = false;
+      return sendJson(response, 200, { deleted: true });
+    }
+
+    if (request.url === workflowPath && request.method === 'PUT') {
+      if (actor !== 'owner' && !this.#bypass) return sendJson(response, actor === 'researcher' ? 403 : 404, { message: 'workflow permission denied' });
+      this.#workflowProbe = true;
+      if (this.#fault === 'drop-after-mutation') {
+        response.destroy();
+        return;
+      }
+      return sendJson(response, 201, { content: { sha: 'b'.repeat(40) }, commit: { sha: 'workflow-fixture-commit' } });
+    }
+
+    if (request.url === workflowPath && request.method === 'DELETE') {
+      if (this.#fault === 'cleanup-failure') return sendJson(response, 500, { message: 'cleanup failed' });
+      if (actor !== 'owner' && !this.#bypass) return sendJson(response, actor === 'researcher' ? 403 : 404, { message: 'workflow permission denied' });
+      this.#workflowProbe = false;
       return sendJson(response, 200, { deleted: true });
     }
 
@@ -261,9 +286,13 @@ function sha256(value: string): string {
   return createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
-function operationIdForPath(path: string): string | undefined {
+function operationIdForPath(path: string, method = 'GET'): string | undefined {
   if (path === '/graphql') return 'github.graphql.contents.get-lab-marker.v1';
+  if (path.includes('/contents/.aegishub-lab.json') && method === 'PUT') return 'github.rest.contents.put-lab-boundary-marker.v1';
+  if (path.includes('/contents/.aegishub-lab.json') && method === 'DELETE') return 'github.rest.contents.delete-lab-boundary-marker.v1';
   if (path.includes('/contents/.aegishub-lab.json')) return 'github.rest.contents.get-lab-marker.v1';
+  if (path.includes('/contents/.github/workflows/aegishub-boundary-probe.yml') && method === 'PUT') return 'github.rest.actions.put-lab-workflow-probe.v1';
+  if (path.includes('/contents/.github/workflows/aegishub-boundary-probe.yml') && method === 'DELETE') return 'github.rest.actions.delete-lab-workflow-probe.v1';
   if (path.startsWith('/repos/')) return 'github.rest.repos.get.v1';
   if (path === '/user') return 'github.rest.users.get-authenticated.v1';
   return undefined;

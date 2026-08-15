@@ -101,6 +101,24 @@ describe('bounty runtime loopback integration', () => {
     expect(server.requests.every((request) => !JSON.stringify(request).includes('synthetic-control-nonce'))).toBe(true);
   });
 
+  it('denies researcher boundary writes without changing the lab marker', async () => {
+    server = new FakeGithubServer();
+    await server.start();
+    const writeOperation = operation('researcher-write', 'researcher', 'researcher-write', 'github.rest.contents.put-lab-boundary-marker.v1' as never);
+    writeOperation.step.parameters = {
+      owner: 'owner-fixture',
+      repo: 'lab-fixture',
+      message: 'aegishub: verify bounty lab',
+      content: 'eyJmaXh0dXJlIjp0cnVlfQ=='
+    };
+    const observation = await makeTransport(server, 1).execute(writeOperation, new globalThis.AbortController().signal);
+
+    expect(observation.status).toBe(403);
+    expect(observation.errorClass).toBe('access_denied');
+    expect(server.markerPresent).toBe(false);
+    expect(server.requests).toMatchObject([{ operationId: 'github.rest.contents.put-lab-boundary-marker.v1', actor: 'researcher', method: 'PUT' }]);
+  });
+
   it('produces a real lab-owned candidate in loopback only when bypass discloses protected data twice', async () => {
     server = new FakeGithubServer({ bypass: true });
     await server.start();
@@ -189,12 +207,12 @@ describe('bounty runtime loopback integration', () => {
   });
 });
 
-function makeTransport(fake: FakeGithubServer): GuardedGitHubTransport {
+function makeTransport(fake: FakeGithubServer, maxMutations = 0): GuardedGitHubTransport {
   return new GuardedGitHubTransport({
     executor: fake.executor(),
     tokenProvider: { getUsableToken: async (actor) => actor === 'owner' ? 'owner-token' : 'researcher-token' },
     rateLimiter: new RunRateLimiter({ concurrency: 1, requestsPerSecond: 100, burst: 8 }),
-    budget: { maxRequests: 12, maxMutations: 0 },
+    budget: { maxRequests: 12, maxMutations },
     policyFingerprint: () => 'b'.repeat(64),
     expectedPolicyFingerprint: 'b'.repeat(64),
     context: {

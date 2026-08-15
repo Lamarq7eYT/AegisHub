@@ -39,7 +39,9 @@ describe('operation catalog', () => {
     expect(visible.map(({ id }) => id)).toEqual([
       'github.rest.repos.get.v1',
       'github.rest.contents.get-lab-marker.v1',
-      'github.graphql.contents.get-lab-marker.v1'
+      'github.graphql.contents.get-lab-marker.v1',
+      'github.rest.contents.put-lab-boundary-marker.v1',
+      'github.rest.actions.put-lab-workflow-probe.v1'
     ]);
     expect(visible.every(({ purpose }) => !purpose.includes('identity') || purpose.includes('experiment'))).toBe(true);
     expect(Object.values(OPERATION_CATALOG).some(({ purpose }) => purpose.includes('cleanup') && !purpose.includes('experiment'))).toBe(true);

@@ -212,10 +212,10 @@ export class GuardedGitHubTransport {
       credentials: 'omit',
       signal,
       ...(resolved.descriptor.protocol === 'graphql' ? { body: JSON.stringify(graphqlRequestBody(resolved)) } : {}),
-      ...(resolved.descriptor.id === 'github.rest.contents.put-lab-marker.v1'
+      ...(resolved.descriptor.id === 'github.rest.contents.put-lab-marker.v1' || resolved.descriptor.id === 'github.rest.contents.put-lab-boundary-marker.v1' || resolved.descriptor.id === 'github.rest.actions.put-lab-workflow-probe.v1'
         ? { body: JSON.stringify({ message: resolved.parameters.message, content: resolved.parameters.content }) }
         : {}),
-      ...(resolved.descriptor.id === 'github.rest.contents.delete-lab-marker.v1'
+      ...(resolved.descriptor.id === 'github.rest.contents.delete-lab-marker.v1' || resolved.descriptor.id === 'github.rest.contents.delete-lab-boundary-marker.v1' || resolved.descriptor.id === 'github.rest.actions.delete-lab-workflow-probe.v1'
         ? { body: JSON.stringify({ message: resolved.parameters.message, sha: resolved.parameters.sha }) }
         : {})
     });
@@ -249,6 +249,11 @@ export class GuardedGitHubTransport {
     let errorClass: string | undefined;
     if (observedStatus === 403) errorClass = 'access_denied';
     if (observedStatus === 404) errorClass = 'not_found';
+    const verifiedSideEffect = request.step.operationId === 'github.rest.contents.put-lab-boundary-marker.v1' && observedStatus >= 200 && observedStatus < 300
+      ? { kind: 'repository-content-write', applied: true }
+      : request.step.operationId === 'github.rest.actions.put-lab-workflow-probe.v1' && observedStatus >= 200 && observedStatus < 300
+        ? { kind: 'workflow-file-write', applied: true }
+      : undefined;
     const candidate = {
       schemaVersion: 1,
       observationId: randomUUID(),
@@ -270,6 +275,7 @@ export class GuardedGitHubTransport {
       repeatGroup: request.step.repeatGroup ?? request.step.id,
       protectedData: hasVerifiedLabMarker(normalizedBody, this.#options.context.labId, this.#options.context.repository.id),
       outOfLab: hasOutOfLabRepository(normalizedBody, this.#options.context.repository.id) || hasOutOfLabMarker(normalizedBody, this.#options.context.repository.id),
+      ...(verifiedSideEffect === undefined ? {} : { verifiedSideEffect }),
       policyVersion: this.#options.context.policyVersion,
       catalogVersion: this.#options.context.catalogVersion,
       ...(errorClass === undefined ? {} : { errorClass })

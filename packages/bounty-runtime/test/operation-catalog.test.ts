@@ -47,6 +47,20 @@ describe('runtime operation catalog', () => {
     }).descriptor.classification).toBe('mutation');
   });
 
+  it('defines the private-content boundary mutation as a fixed experiment operation with owner-only cleanup', () => {
+    const parameters = { owner: 'owner-fixture', repo: 'lab-fixture', message: 'aegishub: verify bounty lab', content: 'e30=' };
+    expect(resolveCatalogOperation({
+      operationId: 'github.rest.contents.put-lab-boundary-marker.v1' as never,
+      parameters,
+      context: context('experiment', 'researcher')
+    }).descriptor.classification).toBe('mutation');
+    expect(resolveCatalogOperation({
+      operationId: 'github.rest.contents.delete-lab-boundary-marker.v1' as never,
+      parameters: { owner: 'owner-fixture', repo: 'lab-fixture', message: 'aegishub: remove bounty lab marker', sha: 'fixture-sha' },
+      context: context('cleanup', 'owner')
+    }).descriptor.allowedActors).toEqual(['owner']);
+  });
+
   it('pins the logical repository identity and rejects a name-only or mismatched request', () => {
     expect(() => resolveCatalogOperation({
       operationId: 'github.rest.repos.get.v1',

@@ -147,6 +147,33 @@ describe('GuardedGitHubTransport', () => {
     });
   });
 
+  it('sends the typed payload for the private-content boundary mutation', async () => {
+    const mutationPlan: PlannedOperation = {
+      ...plan,
+      step: {
+        ...plan.step,
+        phase: 'probe',
+        operationId: 'github.rest.contents.put-lab-boundary-marker.v1' as never,
+        actor: 'researcher',
+        parameters: {
+          owner: 'owner-fixture',
+          repo: 'lab-fixture',
+          message: 'aegishub: verify bounty lab',
+          content: 'eyJmaXh0dXJlIjp0cnVlfQ=='
+        }
+      }
+    };
+    const executor = makeExecutor([response(403, { message: 'Resource not accessible by integration' })]);
+    const transport = makeTransport(executor);
+
+    await expect(transport.execute(mutationPlan, new globalThis.AbortController().signal)).resolves.toMatchObject({ status: 403 });
+    expect(executor.requests[0]?.method).toBe('PUT');
+    expect(JSON.parse(executor.requests[0]?.body ?? '{}')).toEqual({
+      message: 'aegishub: verify bounty lab',
+      content: 'eyJmaXh0dXJlIjp0cnVlfQ=='
+    });
+  });
+
   it('sends the fixed GraphQL lab-marker document without accepting query text', async () => {
     const graphqlPlan: PlannedOperation = {
       ...plan,

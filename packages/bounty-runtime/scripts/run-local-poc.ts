@@ -1,6 +1,6 @@
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 import {
@@ -13,6 +13,8 @@ import {
   type PlannedOperation
 } from '@aegishub/bounty-core';
 
+import { AtomicEvidenceWriter } from '../src/evidence/writer.js';
+import { ExperimentLoader } from '../src/experiments/loader.js';
 import { LabStore } from '../src/lab/store.js';
 import { ExperimentRunner } from '../src/experiments/runner.js';
 import { GuardedGitHubTransport } from '../src/transport/guarded-transport.js';
@@ -151,12 +153,29 @@ async function runMode(mode: Mode): Promise<{
   readonly candidateReproductionCount?: number;
   readonly protectedUntrustedObservations: number;
   readonly stoppedBeforeFollowUp: boolean;
+  readonly evidenceVerified: boolean;
 }> {
   const server = new FakeGithubServer({ bypass: mode === 'bypass' });
   await server.start();
   const runId = randomUUID();
   const currentPlan = plan(runId);
-  const store = new LabStore(await mkdtemp(join(tmpdir(), 'aegishub-local-poc-')));
+  const workspaceRoot = await mkdtemp(join(tmpdir(), 'aegishub-local-poc-'));
+  const store = new LabStore(workspaceRoot);
+  const experiment = (await new ExperimentLoader({ workspaceRoot, runtimeRoot: resolve(import.meta.dirname, '..') }).loadBuiltIn('repo.private.rest-graphql-authorization.v1')).experiment;
+  const evidence = new AtomicEvidenceWriter({
+    workspaceRoot,
+    lab: {
+      labId,
+      ownerId: manifest.owner.id,
+      researcherId: manifest.researcher.id,
+      repository: { id: repository.id, nodeId: repository.nodeId, owner: 'owner-fixture', name: 'lab-fixture', fullName: repository.fullName },
+      markerSha256: 'a'.repeat(64)
+    },
+    policy,
+    policyExcerptIds: ['local-loopback'],
+    experiment,
+    plan: currentPlan
+  });
   try {
     const completed = await new ExperimentRunner().run({
       store,
@@ -176,8 +195,10 @@ async function runMode(mode: Mode): Promise<{
       executor: {
         execute: async (operation, signal) => transport(server, runId).execute(toPlannedOperation(operation, currentPlan), signal)
       },
+      evidenceSink: evidence,
       now: () => now
     });
+    const inspected = await evidence.inspect(runId);
     const protectedUntrustedObservations = completed.observations.filter((observation) => observation.actor !== 'owner' && observation.protectedData).length;
     return {
       mode,
@@ -189,7 +210,8 @@ async function runMode(mode: Mode): Promise<{
       candidate: completed.candidate !== undefined,
       ...(completed.candidate === undefined ? {} : { candidateReproductionCount: completed.candidate.reproductionCount }),
       protectedUntrustedObservations,
-      stoppedBeforeFollowUp: !server.requests.some((request) => request.operationId === 'github.graphql.contents.get-lab-marker.v1')
+      stoppedBeforeFollowUp: !server.requests.some((request) => request.operationId === 'github.graphql.contents.get-lab-marker.v1'),
+      evidenceVerified: inspected.verified
     };
   } finally {
     await server.stop();

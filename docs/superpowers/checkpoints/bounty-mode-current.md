@@ -198,3 +198,34 @@ The candidate threshold is intentionally high. Cosmetic identity, status, header
 The local PoC uses only the loopback `FakeGithubServer`. The safe mode returned `expected` with 5 requests, 0 mutations, 0 protected untrusted observations, and no candidate. The synthetic bypass mode returned `anomalous` with reason `candidate_stop`, 4 requests, 0 mutations, 2 repeated protected untrusted observations, candidate reproduction count 2, and the follow-up GraphQL operation not executed. This is a synthetic fixture validation, not a GitHub vulnerability or severity claim.
 
 Sanitized artifacts are under `artifacts/phase2-local-poc/`, including `summary.json`, `report.md`, and `aegishub-phase2-local-poc-demo.mp4`. The demo is loopback-only and explicitly states no real GitHub request, no real credential, no third-party data, no severity claim, and no live execution. Any future GitHub live run requires a separate explicit approval after review of the local implementation and artifacts.
+
+## Live research update — Hypothesis 1 triage
+
+The first real hypothesis, `repo.private.rest-graphql-authorization.v1`, was executed only against the operator-owned private lab with owner, researcher, and anonymous actors. No mutations were performed. The last diagnostic run produced eight sanitized observations, no protected data for untrusted actors, no candidate, and stopped with `transport_rate_limited`. REST denials were `not_found`; GraphQL denials were `access_denied`. This is not a security finding and no severity is assigned.
+
+The live attempts used run IDs `dabf333a-22ca-4abc-ad0e-cd04d7b3fae9`, `80037c1a-d121-4ff8-b90e-8d7c7c8191e5`, and `ce5d80f9-55ee-4b7e-8075-e4f7ffab4ce5`. No live evidence bundle was finalized because the run was inconclusive. A local writer fix now preserves a classifier-generated inconclusive diff instead of converting the run into `evidence_invalid_input`; this does not change candidate semantics.
+
+The detailed triage is recorded in `docs/superpowers/research/2026-08-15-hypothesis-1-live-triage.md`. Hypothesis 1 is closed as inconclusive. No further requests for this hypothesis should be made.
+
+
+## Continuation update — Phase 2 Hypothesis 2 local implementation
+
+The local implementation of Hypothesis 2, `repo.private.workflow-write-boundary.v1`, is complete and remains strictly laboratory-scoped. The bundled experiment now has `schemaVersion: 1`, five requests, one fixed mutation, two repeated anonymous marker probes, no execution step, no secret access, no arbitrary content, and a fixed harmless workflow body encoded as `eA==`. The earlier schema failure was corrected by satisfying the existing minimum of two consistent untrusted attempts; the boundary expectation was not weakened.
+
+The operation catalog is at version `1.1.0` and exposes only the fixed owner-lab boundary mutations for the contents marker and workflow probe. The runtime now routes the workflow probe through the guarded catalog transport, verifies successful mutation status as a side-effect signal, denies researcher writes in the fake server, and classifies a verified untrusted integrity side effect followed by the owner repeat as an anomalous candidate. Candidate-stop remains active before any follow-up expansion. The synthetic bypass remains a fake-server fixture only and is not a GitHub finding.
+
+The live harness now allowlists the workflow experiment, requests an interactive approval fingerprint and single-use grant for its one mutation, sets integrity impact, uses `maxMutations: 1`, emits `Candidato de segurança — aguardando revisão humana` on a real anomalous result, and does not submit or assign severity. Fresh manifests approve both `repository-read-boundary` and `repository-write-boundary`; the existing local ignored manifest was updated accordingly without changing owner, researcher, repository identity, marker hash, or budgets. No live workflow run has been executed in this continuation.
+
+Verification after the local implementation:
+
+- `bounty-core`: 135 tests passed; typecheck and build passed; lint completed with 17 non-fatal security-rule warnings and zero errors.
+- `bounty-runtime`: 253 tests passed and one opt-in live test was skipped; typecheck and build passed; lint completed with 132 non-fatal security-rule warnings and zero errors.
+- CLI: 10 tests passed; typecheck and build passed; lint completed with one non-fatal filesystem-security warning and zero errors.
+- `git diff --check main`: passed.
+
+The last pushed commit remains `734877f` (`feat(bounty): implement phase 2 local PoC`). The Hypothesis 2 implementation and checkpoint update are currently uncommitted. Before any live run, the operator must confirm that the `AegisHub Bounty Lab` GitHub App has `Workflows: write` permission; otherwise the owner baseline will also be denied and the result will be inconclusive. A live run additionally requires both already authorized Device Flows, the verified lab manifest, current policy, an interactive terminal, and explicit user-present confirmation of the approval fingerprint. No credentials are requested or stored in chat.
+
+
+The prerequisite App settings check was completed in the authenticated owner session on GitHub. The official `Permissions & events` page showed `Actions: No access` and `Workflows: No access` for **AegisHub Bounty Lab**. No settings were changed. Consequently, the owner baseline for the workflow mutation cannot currently succeed; a live run now would be an owner-baseline failure and would be inconclusive by design, not a candidate. The detailed sanitized check is recorded in `docs/superpowers/research/2026-08-15-hypothesis-2-app-permission-check.md`. Enabling `Workflows: Read and write`, reinstalling or reauthorizing the App if GitHub requests it, and any subsequent live execution require a separate explicit user decision.
+
+After the harness edits, the non-live runtime gate still passed: 253 tests passed, one live test was skipped, typecheck passed, and `git diff --check main` passed. No live GitHub request was made.

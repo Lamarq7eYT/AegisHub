@@ -49,6 +49,21 @@ describe('bundled private contents boundary experiment', () => {
     expect(experiment.steps.every((step) => step.parameters.owner && typeof step.parameters.owner === 'object' && 'ref' in step.parameters.owner)).toBe(true);
   });
 
+  it('loads the workflow permission-boundary experiment with one fixed mutation and no execution step', async () => {
+    const loader = new ExperimentLoader({ workspaceRoot: '/tmp/aegishub-builtin-fixture', runtimeRoot });
+    const loaded = await loader.loadBuiltIn('repo.private.workflow-write-boundary.v1');
+    const experiment = loaded.experiment;
+
+    expect(experiment.id).toBe('repo.private.workflow-write-boundary.v1');
+    expect(experiment.budgets.maxRequests).toBe(5);
+    expect(experiment.budgets.maxMutations).toBe(1);
+    expect(experiment.steps).toHaveLength(5);
+    expect(experiment.steps.filter((step) => step.operationId === 'github.rest.actions.put-lab-workflow-probe.v1')).toHaveLength(1);
+    expect(experiment.steps.filter((step) => step.operationId.includes('delete'))).toHaveLength(0);
+    expect(experiment.steps.every((step) => !('branch' in step.parameters))).toBe(true);
+    expect(experiment.steps.find((step) => step.operationId === 'github.rest.actions.put-lab-workflow-probe.v1')?.parameters.content).toBe('eA==');
+  });
+
   it('keeps identical parsed documents stable and changes approval fingerprints after semantic edits', async () => {
     const workspace = await mkdtemp('/tmp/aegishub-builtin-fingerprint-');
     const directory = join(workspace, '.aegishub', 'experiments');

@@ -32,13 +32,17 @@ type OperationId =
   | 'github.rest.repos.get.v1'
   | 'github.rest.contents.get-lab-marker.v1'
   | 'github.rest.contents.put-lab-marker.v1'
-  | 'github.rest.contents.delete-lab-marker.v1';
+  | 'github.rest.contents.delete-lab-marker.v1'
+  | 'github.rest.contents.put-lab-boundary-marker.v1'
+  | 'github.rest.contents.delete-lab-boundary-marker.v1'
+  | 'github.rest.actions.put-lab-workflow-probe.v1'
+  | 'github.rest.actions.delete-lab-workflow-probe.v1';
 
 export type CatalogOperationId = OperationId;
 
 export type OperationPurpose = 'identity' | 'enrollment' | 'experiment' | 'cleanup';
 export type OperationClassification = 'read' | 'mutation';
-export type OperationPermission = 'metadata:read' | 'contents:read' | 'contents:write';
+export type OperationPermission = 'metadata:read' | 'contents:read' | 'contents:write' | 'workflows:write';
 export type OperationRetry = 'safe-read' | 'never';
 export type RetainedResponseHeader = 'content-type' | 'etag' | 'x-github-media-type';
 
@@ -82,6 +86,18 @@ const markerPutParametersSchema = z.object({
   message: z.literal('aegishub: verify bounty lab'),
   content: z.string().min(1).max(1_000_000).regex(/^[A-Za-z0-9+/]+={0,2}$/u)
 }).strict();
+const workflowPutParametersSchema = z.object({
+  owner: z.string().min(1),
+  repo: z.string().min(1),
+  message: z.literal('aegishub: verify workflow permission boundary'),
+  content: z.literal('eA==')
+}).strict();
+const workflowDeleteParametersSchema = z.object({
+  owner: z.string().min(1),
+  repo: z.string().min(1),
+  message: z.literal('aegishub: cleanup workflow permission boundary'),
+  sha: z.string().min(1).max(200).regex(/^[A-Za-z0-9_-]+$/u)
+}).strict();
 const markerDeleteParametersSchema = z.object({
   owner: z.string().min(1),
   repo: z.string().min(1),
@@ -96,7 +112,11 @@ const parameterSchemas: Readonly<Record<OperationId, z.ZodType<Record<string, Js
   'github.rest.contents.get-lab-marker.v1': repositoryParametersSchema,
   'github.graphql.contents.get-lab-marker.v1': repositoryParametersSchema,
   'github.rest.contents.put-lab-marker.v1': markerPutParametersSchema,
-  'github.rest.contents.delete-lab-marker.v1': markerDeleteParametersSchema
+  'github.rest.contents.delete-lab-marker.v1': markerDeleteParametersSchema,
+  'github.rest.contents.put-lab-boundary-marker.v1': markerPutParametersSchema,
+  'github.rest.contents.delete-lab-boundary-marker.v1': markerDeleteParametersSchema,
+  'github.rest.actions.put-lab-workflow-probe.v1': workflowPutParametersSchema,
+  'github.rest.actions.delete-lab-workflow-probe.v1': workflowDeleteParametersSchema
 };
 
 const descriptors: Record<OperationId, OperationDescriptor> = {
@@ -211,6 +231,72 @@ const descriptors: Record<OperationId, OperationDescriptor> = {
     permission: 'contents:write',
     retry: 'never',
     normalizationProfile: 'marker-mutation-v1',
+    retainedResponseHeaders: ['content-type', 'etag', 'x-github-media-type'],
+    retainedFields: ['content.sha', 'commit.sha'],
+    parameterKeys: ['owner', 'repo']
+  },
+  'github.rest.contents.put-lab-boundary-marker.v1': {
+    id: 'github.rest.contents.put-lab-boundary-marker.v1',
+    version: 1,
+    protocol: 'rest',
+    method: 'PUT',
+    pathTemplate: '/repos/{owner}/{repo}/contents/.aegishub-lab.json',
+    purpose: ['experiment'],
+    classification: 'mutation',
+    allowedActors: ['owner', 'researcher'],
+    permission: 'contents:write',
+    retry: 'never',
+    cleanupOperationId: 'github.rest.contents.delete-lab-boundary-marker.v1',
+    normalizationProfile: 'marker-mutation-v1',
+    retainedResponseHeaders: ['content-type', 'etag', 'x-github-media-type'],
+    retainedFields: ['content.sha', 'commit.sha'],
+    parameterKeys: ['owner', 'repo']
+  },
+  'github.rest.contents.delete-lab-boundary-marker.v1': {
+    id: 'github.rest.contents.delete-lab-boundary-marker.v1',
+    version: 1,
+    protocol: 'rest',
+    method: 'DELETE',
+    pathTemplate: '/repos/{owner}/{repo}/contents/.aegishub-lab.json',
+    purpose: ['cleanup'],
+    classification: 'mutation',
+    allowedActors: ['owner'],
+    permission: 'contents:write',
+    retry: 'never',
+    normalizationProfile: 'marker-mutation-v1',
+    retainedResponseHeaders: ['content-type', 'etag', 'x-github-media-type'],
+    retainedFields: ['content.sha', 'commit.sha'],
+    parameterKeys: ['owner', 'repo']
+  },
+  'github.rest.actions.put-lab-workflow-probe.v1': {
+    id: 'github.rest.actions.put-lab-workflow-probe.v1',
+    version: 1,
+    protocol: 'rest',
+    method: 'PUT',
+    pathTemplate: '/repos/{owner}/{repo}/contents/.github/workflows/aegishub-boundary-probe.yml',
+    purpose: ['experiment'],
+    classification: 'mutation',
+    allowedActors: ['owner', 'researcher'],
+    permission: 'workflows:write',
+    retry: 'never',
+    cleanupOperationId: 'github.rest.actions.delete-lab-workflow-probe.v1',
+    normalizationProfile: 'workflow-mutation-v1',
+    retainedResponseHeaders: ['content-type', 'etag', 'x-github-media-type'],
+    retainedFields: ['content.sha', 'commit.sha'],
+    parameterKeys: ['owner', 'repo']
+  },
+  'github.rest.actions.delete-lab-workflow-probe.v1': {
+    id: 'github.rest.actions.delete-lab-workflow-probe.v1',
+    version: 1,
+    protocol: 'rest',
+    method: 'DELETE',
+    pathTemplate: '/repos/{owner}/{repo}/contents/.github/workflows/aegishub-boundary-probe.yml',
+    purpose: ['cleanup'],
+    classification: 'mutation',
+    allowedActors: ['owner'],
+    permission: 'workflows:write',
+    retry: 'never',
+    normalizationProfile: 'workflow-mutation-v1',
     retainedResponseHeaders: ['content-type', 'etag', 'x-github-media-type'],
     retainedFields: ['content.sha', 'commit.sha'],
     parameterKeys: ['owner', 'repo']

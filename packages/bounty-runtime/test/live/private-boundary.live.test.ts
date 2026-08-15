@@ -9,6 +9,8 @@ import { describe, expect, it } from 'vitest';
 import {
   catalogFingerprint,
   computePolicyStatus,
+  createApprovalFingerprint,
+  createApprovalGrant,
   OPERATION_CATALOG,
   sha256StableJson,
   type JsonValue,
@@ -44,7 +46,14 @@ import {
 } from '../../src/index.js';
 
 const live = describe.skipIf(globalThis.process.env.AEGISHUB_BOUNTY_LIVE !== '1');
-const experimentId = 'repo.private.contents-read-boundary.v1';
+type LiveExperimentId = 'repo.private.contents-read-boundary.v1' | 'repo.private.rest-graphql-authorization.v1' | 'repo.private.workflow-write-boundary.v1';
+const requestedExperiment = globalThis.process.env.AEGISHUB_BOUNTY_LIVE_EXPERIMENT?.trim();
+if (requestedExperiment !== undefined && requestedExperiment !== 'repo.private.contents-read-boundary.v1' && requestedExperiment !== 'repo.private.rest-graphql-authorization.v1' && requestedExperiment !== 'repo.private.workflow-write-boundary.v1') {
+  throw new Error('live_gate_experiment_not_allowlisted');
+}
+const experimentId: LiveExperimentId = (requestedExperiment as LiveExperimentId | undefined) ?? 'repo.private.contents-read-boundary.v1';
+const phase2 = experimentId === 'repo.private.rest-graphql-authorization.v1';
+const phase2workflow = experimentId === 'repo.private.workflow-write-boundary.v1';
 
 live('private contents boundary live validation', () => {
   it('runs the two-account owned-lab boundary and writes sanitized expected evidence', async () => {
@@ -111,7 +120,20 @@ live('private contents boundary live validation', () => {
       catalogFingerprint: catalogHash
     });
     const runId = randomUUID();
-    const runTransport = createTransport(identity, policyFingerprint, policy.policyVersion, runId, plan.budgets.maxRequests, 0, manifest.labId, { id: repositoryEntry.id, nodeId: repositoryEntry.nodeId, fullName: repositoryEntry.fullName });
+    const approvalFingerprint = phase2workflow
+      ? createApprovalFingerprint({
+          plan,
+          ownerId: manifest.owner.id,
+          researcherId: manifest.researcher.id,
+          manifestSha256: loadedLab.sha256,
+          policyFingerprint,
+          catalogFingerprint: catalogHash
+        })
+      : undefined;
+    const approvalGrant = approvalFingerprint === undefined
+      ? undefined
+      : (await requireTypedConfirmation(approvalFingerprint, 'mutation workflow do laboratório'), createApprovalGrant(approvalFingerprint));
+    const runTransport = createTransport(identity, policyFingerprint, policy.policyVersion, runId, plan.budgets.maxRequests, phase2workflow ? 1 : 0, manifest.labId, { id: repositoryEntry.id, nodeId: repositoryEntry.nodeId, fullName: repositoryEntry.fullName });
     const evidence = new AtomicEvidenceWriter({
       workspaceRoot,
       lab: {
@@ -138,8 +160,11 @@ live('private contents boundary live validation', () => {
       expectedPolicyFingerprint: policyFingerprint,
       catalogFingerprint: catalogHash,
       interactiveTerminal: true,
+      ...(approvalGrant === undefined ? {} : { approvalGrant }),
       expectation: loadedExperiment.experiment.expectation,
-      impact: { kind: 'confidentiality', summary: 'Synthetic marker owned by the configured lab owner.', labOwned: true },
+      impact: phase2workflow
+        ? { kind: 'integrity', summary: 'Fixed harmless workflow probe owned by the configured lab owner.', labOwned: true }
+        : { kind: 'confidentiality', summary: 'Synthetic marker owned by the configured lab owner.', labOwned: true },
       ineligibleClasses: [],
       executor: {
         execute: async (operation, signal) => {
@@ -147,16 +172,31 @@ live('private contents boundary live validation', () => {
           return runTransport.execute(toPlannedOperation(operation, plan, loadedExperiment.experiment.steps[operation.ordinal - 1]?.repeatGroup, repositoryEntry.id), signal);
         }
       },
-      evidenceSink: evidence
+      evidenceSink: {
+        accept: async (run) => {
+          globalThis.process.stdout.write(`pre-evidence result=${run.manifest.result} reason=${run.reason ?? 'none'} requests=${run.manifest.requestCount} candidate=${run.candidate === undefined ? 'no' : 'yes'} observations=${run.observations.length} diff=${run.diff === undefined ? 'no' : 'yes'} errors=${run.observations.map((observation) => observation.errorClass ?? 'none').join(',')}\n`);
+          await evidence.accept(run);
+        }
+      }
     });
 
+    const inspected = await evidence.inspect(runId);
+    if ((phase2 || phase2workflow) && completed.manifest.result === 'anomalous' && completed.candidate !== undefined) {
+      globalThis.process.stdout.write(`Candidato de segurança — aguardando revisão humana.\n`);
+      globalThis.process.stdout.write(`candidate evidence bundle: ${inspected.path}\n`);
+      globalThis.process.stdout.write(`candidate requests: ${completed.manifest.requestCount}; protected repetitions: ${completed.candidate.reproductionCount}\n`);
+      throw new Error('live_candidate_stop_review_required');
+    }
     expect(completed.manifest.result).toBe('expected');
     expect(completed.candidate).toBeUndefined();
     expect(completed.observations).toHaveLength(plan.operations.length);
     expect(completed.observations.filter((observation) => observation.actor === 'owner').every((observation) => observation.status === 200)).toBe(true);
     expect(completed.observations.filter((observation) => observation.actor === 'researcher' || observation.actor === 'anonymous').every((observation) => observation.status === 403 || observation.status === 404)).toBe(true);
+    if (phase2) {
+      expect(completed.observations.filter((observation) => observation.operationId === 'github.graphql.contents.get-lab-marker.v1')).toHaveLength(6);
+      expect(completed.observations.filter((observation) => observation.actor !== 'owner').every((observation) => !observation.protectedData)).toBe(true);
+    }
 
-    const inspected = await evidence.inspect(runId);
     expect(inspected.verified).toBe(true);
     expect(inspected.manifest.result).toBe('expected');
     expect(JSON.stringify(inspected)).not.toContain('controlNonce');
@@ -280,7 +320,7 @@ function createTransport(identity: IdentityManager, policyFingerprint: string, p
       labId,
       runId,
       policyVersion,
-      catalogVersion: '1.0.0',
+      catalogVersion: '1.1.0',
       repository
     }
   });
@@ -393,7 +433,7 @@ function freshManifest(repository: ResolvedRepository, owner: { id: number; node
     owner,
     researcher,
     repositories: [{ id: repository.id, nodeId: repository.nodeId, ownerId: repository.ownerId, owner: repository.ownerLogin, name: repository.name, fullName: repository.fullName, markerSha256: '0'.repeat(64) }],
-    approvedOperationFamilies: ['repository-read-boundary'],
+    approvedOperationFamilies: ['repository-read-boundary', 'repository-write-boundary'],
     budgets: { concurrency: 1, requestsPerSecond: 1, burst: 2, maxRequests: 12, maxMutations: 10, timeoutMs: 20_000, maxReadRetries: 2, maxMutationRetries: 0 },
     retention: { maxResponseBytes: 262_144, keepRuns: 20 },
     createdAt: timestamp,
