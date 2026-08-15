@@ -1,9 +1,9 @@
 # AegisHub Bounty Mode — Phase 1 Foundation Design
 
-**Status:** Approved design  
-**Approved by:** Llew  
-**Approval date:** 2026-08-13  
-**Target branch:** `codex/bounty-mode-foundation`  
+**Status:** Approved design
+**Approved by:** Llew
+**Approval date:** 2026-08-13
+**Target branch:** `codex/bounty-mode-foundation`
 **Scope:** Phase 1 foundation only
 
 ## 1. Summary
