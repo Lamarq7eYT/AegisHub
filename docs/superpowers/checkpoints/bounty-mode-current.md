@@ -81,7 +81,7 @@ Task 4 is complete. Authentication uses session-only credentials by default, exp
 
 ## Next continuation point
 
-Continue with **Task 11 — Step 1: write command-tree tests using injected services**. Register the bounty command tree without regressing existing CLI commands, keeping credential, policy, lab, approval, runner, evidence and emergency-stop services injected. The completed Task 10 commit is recorded below.
+Continue with **Task 12 — Step 1: implement the stateful loopback-only fake GitHub server**. Bind only to 127.0.0.1 on an ephemeral port, model the approved Device Flow/lab/transport faults, and then exercise the actual runtime end to end. The completed Task 11 commit is recorded below.
 
 Before claiming Phase 1 completion, continue Task by Task through the remaining plan, keep this checkpoint current after every completed Task, run all non-live verification gates, and record the live gate as pending unless the user-owned lab is explicitly available and verified. Never request or store passwords, cookies, 2FA codes, access tokens, refresh tokens, or reserve-account credentials in chat or fixtures.
 
@@ -135,6 +135,12 @@ Task 9 verification: bounty-core build passed. Bounty-runtime passed 204 tests a
 Task 10 is complete in commit `be020d9 feat(bounty): add private contents boundary experiment`. It adds the strict bundled `repo.private.contents-read-boundary.v1` YAML, typed parameter references limited to the verified lab repository, built-in loading by fixed ID, planner resolution against immutable lab identity, the known-safe owner/researcher/anonymous read-only arrangement, stable semantic fingerprints, approval invalidation after semantic budget changes, and fail-closed scripted classifications for expected, precondition-not-met, anomalous, mixed and out-of-lab outcomes. The runtime build now copies the YAML into `dist/experiments`.
 
 Task 10 verification: bounty-core passed 131 tests, lint with zero errors and non-fatal security warnings, typecheck and build. Bounty-runtime passed 216 tests across 19 files, lint with zero errors and non-fatal security warnings, typecheck and build; the focused bundled suite passed 4 tests. The built YAML asset was verified in `dist/experiments`, and `git diff --check` passed before commit. The worktree was clean at commit creation and the branch is ahead of origin by one commit.
+
+## Continuation update — Task 11 completed
+
+Task 11 is complete in commit `3412273 feat(cli): expose guarded bounty workflows`. It adds the nested `bounty` command tree, injected service composition root, session-only default and explicit keyring persistence selection, readline-based terminal confirmation, stable typed CLI errors, policy/auth/lab/experiment/run/evidence/stop orchestration, and two regression suites proving the legacy help/auth/report surface remains intact. The runtime YAML asset remains packaged for the CLI dependency.
+
+Task 11 verification: focused CLI tests passed 10 tests; CLI lint passed with zero errors and one non-fatal filesystem-security warning; CLI typecheck and build passed. `git diff --check` passed before commit. The worktree was clean at commit creation and the branch is ahead of origin by one commit.
 
 ## Commands to resume
 
