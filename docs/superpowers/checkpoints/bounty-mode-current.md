@@ -81,7 +81,7 @@ Task 4 is complete. Authentication uses session-only credentials by default, exp
 
 ## Next continuation point
 
-Continue with **Task 10 — Step 1: add the failing built-in experiment contract test**. Load the bundled private-contents boundary experiment by ID and validate its read-only actors, repeats, budgets, expected denied statuses, and no-cleanup invariant. The completed Task 9 commit is recorded below.
+Continue with **Task 11 — Step 1: write command-tree tests using injected services**. Register the bounty command tree without regressing existing CLI commands, keeping credential, policy, lab, approval, runner, evidence and emergency-stop services injected. The completed Task 10 commit is recorded below.
 
 Before claiming Phase 1 completion, continue Task by Task through the remaining plan, keep this checkpoint current after every completed Task, run all non-live verification gates, and record the live gate as pending unless the user-owned lab is explicitly available and verified. Never request or store passwords, cookies, 2FA codes, access tokens, refresh tokens, or reserve-account credentials in chat or fixtures.
 
@@ -129,6 +129,12 @@ Task 8 verification: bounty-core passed 131 tests, lint with zero errors and non
 Task 9 is complete in commit `b2b11e4 feat(bounty): export sanitized evidence bundles`. It adds schema-first atomic evidence writing under `.aegishub/runs/<run-id>`, canonical JSON/NDJSON/Markdown layout, final secret scanning with run-local redaction, sorted SHA-256 checksums, overwrite and symlink guards, safe temporary-directory failure handling, verified inspect, deterministic reports and sanitized catalog-only reproduction instructions, plus atomic analysis-pack export validated by `analystInputSchema`.
 
 Task 9 verification: bounty-core build passed. Bounty-runtime passed 204 tests across the existing suite plus 8 focused evidence/report tests, lint with zero errors and non-fatal security warnings, typecheck, and build. `git diff --check` passed before commit. The worktree was clean at commit creation and the branch is ahead of origin by one commit.
+
+## Continuation update — Task 10 completed
+
+Task 10 is complete in commit `be020d9 feat(bounty): add private contents boundary experiment`. It adds the strict bundled `repo.private.contents-read-boundary.v1` YAML, typed parameter references limited to the verified lab repository, built-in loading by fixed ID, planner resolution against immutable lab identity, the known-safe owner/researcher/anonymous read-only arrangement, stable semantic fingerprints, approval invalidation after semantic budget changes, and fail-closed scripted classifications for expected, precondition-not-met, anomalous, mixed and out-of-lab outcomes. The runtime build now copies the YAML into `dist/experiments`.
+
+Task 10 verification: bounty-core passed 131 tests, lint with zero errors and non-fatal security warnings, typecheck and build. Bounty-runtime passed 216 tests across 19 files, lint with zero errors and non-fatal security warnings, typecheck and build; the focused bundled suite passed 4 tests. The built YAML asset was verified in `dist/experiments`, and `git diff --check` passed before commit. The worktree was clean at commit creation and the branch is ahead of origin by one commit.
 
 ## Commands to resume
 
