@@ -106,6 +106,9 @@ const validObservation = {
   headers: { 'content-type': 'application/json' },
   normalizedBody: { id: 3003, private: true },
   bodySha256: sha256,
+  repeatGroup: 'owner-repository',
+  protectedData: false,
+  outOfLab: false,
   policyVersion: 'github-bounty-2026-08',
   catalogVersion: '1'
 };

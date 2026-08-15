@@ -341,6 +341,10 @@ export const observationSchema = z
     normalizedBody: jsonValueSchema,
     bodySha256: sha256Schema,
     verifiedSideEffect: jsonValueSchema.optional(),
+    repeatGroup: nonEmptyStringSchema,
+    protectedData: z.boolean(),
+    outOfLab: z.boolean(),
+    errorClass: nonEmptyStringSchema.optional(),
     policyVersion: nonEmptyStringSchema,
     catalogVersion: nonEmptyStringSchema
   })
@@ -417,13 +421,24 @@ export const evidenceIndexSchema = z
   })
   .strict();
 
+export const analystObservationSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    observationId: nonEmptyStringSchema,
+    actor: actorSchema,
+    status: statusCodeSchema,
+    normalizedBody: jsonValueSchema,
+    bodySha256: sha256Schema
+  })
+  .strict();
+
 export const analystInputSchema = z
   .object({
     schemaVersion: z.literal(1),
     labId: uuidSchema,
     runId: uuidSchema,
     evidenceIds: z.array(nonEmptyStringSchema).min(1),
-    sanitizedObservations: z.array(observationSchema),
+    sanitizedObservations: z.array(analystObservationSchema),
     priorSummaries: z.array(nonEmptyStringSchema),
     policyExcerptIds: z.array(nonEmptyStringSchema).min(1),
     availableOperationIds: z.array(operationIdSchema).min(1)
@@ -477,6 +492,7 @@ export type Candidate = z.infer<typeof candidateSchema>;
 export type RunManifest = z.infer<typeof runManifestSchema>;
 export type EvidenceEntry = z.infer<typeof evidenceEntrySchema>;
 export type EvidenceIndex = z.infer<typeof evidenceIndexSchema>;
+export type AnalystObservation = z.infer<typeof analystObservationSchema>;
 export type AnalystInput = z.infer<typeof analystInputSchema>;
 export type AnalystHypothesis = z.infer<typeof analystHypothesisSchema>;
 export type AnalystOutput = z.infer<typeof analystOutputSchema>;
