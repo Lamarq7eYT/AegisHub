@@ -121,6 +121,9 @@ export class GuardedGitHubTransport {
         }
         if (response.status === 401) throw new GuardedTransportError('transport_unauthorized');
         if (response.status === 429) throw new GuardedTransportError('transport_rate_limited');
+        if (response.status === 403 && (response.headers['x-ratelimit-remaining'] === '0' || /secondary rate limit/iu.test(response.body))) {
+          throw new GuardedTransportError('transport_rate_limited');
+        }
         if (Buffer.byteLength(response.body, 'utf8') > this.#maxResponseBytes) {
           throw new GuardedTransportError('transport_response_too_large');
         }
@@ -225,9 +228,9 @@ export class GuardedGitHubTransport {
       headers,
       normalizedBody,
       bodySha256,
-      repeatGroup: request.step.id,
-      protectedData: false,
-      outOfLab: false,
+      repeatGroup: request.step.repeatGroup ?? request.step.id,
+      protectedData: hasVerifiedLabMarker(normalizedBody, this.#options.context.labId, this.#options.context.repository.id),
+      outOfLab: hasOutOfLabRepository(normalizedBody, this.#options.context.repository.id),
       policyVersion: this.#options.context.policyVersion,
       catalogVersion: this.#options.context.catalogVersion,
       ...(errorClass === undefined ? {} : { errorClass })
@@ -246,6 +249,20 @@ export class GuardedGitHubTransport {
   private now(): Date {
     return this.#options.now?.() ?? new Date();
   }
+}
+
+function hasVerifiedLabMarker(body: JsonValue, labId: string, repositoryId: number): boolean {
+  if (!isJsonObject(body) || !isJsonObject(body.marker)) return false;
+  return body.marker.labId === labId && body.marker.repositoryId === repositoryId;
+}
+
+function hasOutOfLabRepository(body: JsonValue, repositoryId: number): boolean {
+  if (!isJsonObject(body) || !isJsonObject(body.repository)) return false;
+  return typeof body.repository.id === 'number' && body.repository.id !== repositoryId;
+}
+
+function isJsonObject(value: JsonValue | undefined): value is { readonly [key: string]: JsonValue } {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function purposeForPhase(phase: PlannedOperation['step']['phase']): CatalogExecutionPurpose {

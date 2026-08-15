@@ -260,7 +260,7 @@ export function classifyRun(input: DifferentialInput): DifferentialResult {
 
   if (
     normalized.some(
-      (observation) => observation.errorClass !== undefined || observation.status >= 500
+      (observation) => (observation.errorClass !== undefined && !['access_denied', 'not_found'].includes(observation.errorClass)) || observation.status >= 500
     )
   ) {
     return {

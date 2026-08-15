@@ -15,6 +15,7 @@
     "build": "tsup src/index.ts --format esm --dts --clean --external @napi-rs/keyring && mkdir -p dist/experiments && cp experiments/*.yaml dist/experiments/",
     "lint": "eslint src test scripts --ext .ts --no-error-on-unmatched-pattern",
     "test": "vitest run --passWithNoTests",
+    "test:live": "vitest run test/live/private-boundary.live.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
