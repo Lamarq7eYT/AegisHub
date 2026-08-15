@@ -85,9 +85,9 @@ describe('reviewed policy snapshot loader RED contract', () => {
   it.each([
     ['malformed JSON', '{', 'invalid_policy_snapshot'],
     ['strict-schema extra key', JSON.stringify({ ...reviewedSnapshot(), unexpected: true }), 'invalid_policy_snapshot'],
-    ['five-source duplicate identity', JSON.stringify(reviewedSnapshot({ sources: [...reviewedSnapshot().sources.slice(0, 4), reviewedSnapshot().sources[0]] })), 'invalid_policy_snapshot'],
-    ['five-source unknown identity', JSON.stringify(reviewedSnapshot({ sources: [...reviewedSnapshot().sources.slice(0, 4), { ...reviewedSnapshot().sources[4], id: 'unknown' }] })), 'invalid_policy_snapshot'],
-    ['wrong URL with all five sources', JSON.stringify(reviewedSnapshot({ sources: [{ ...reviewedSnapshot().sources[0], url: 'https://example.test/rules' }, ...reviewedSnapshot().sources.slice(1)] })), 'invalid_policy_snapshot'],
+    ['five-source duplicate identity', JSON.stringify(reviewedSnapshot({ sources: [...reviewedSnapshot().sources.slice(0, 4), reviewedSnapshot().sources[0]!] })), 'invalid_policy_snapshot'],
+    ['five-source unknown identity', JSON.stringify(reviewedSnapshot({ sources: [...reviewedSnapshot().sources.slice(0, 4), { ...reviewedSnapshot().sources[4]!, id: 'unknown' }] })), 'invalid_policy_snapshot'],
+    ['wrong URL with all five sources', JSON.stringify(reviewedSnapshot({ sources: [{ ...reviewedSnapshot().sources[0]!, url: 'https://example.test/rules' }, ...reviewedSnapshot().sources.slice(1)] })), 'invalid_policy_snapshot'],
     ['unreviewed enforcement pin', JSON.stringify(reviewedSnapshot({ enforcementSha256: hash('f') })), 'policy_enforcement_mismatch']
   ])('rejects %s with a typed closed error before use', async (_caseName, contents, code) => {
     await expect(
@@ -145,7 +145,7 @@ describe('PolicyMonitor RED contract', () => {
       ['read failure', async () => { throw new Error('read failure'); }]
     ];
 
-    for (const [_caseName, secondRead] of cases) {
+    for (const [, secondRead] of cases) {
       let reads = 0;
       let remoteCalls = 0;
       const monitor = new PolicyMonitor({
@@ -175,7 +175,7 @@ describe('PolicyMonitor RED contract', () => {
       ['malformed JSON', async () => '{'],
       ['read failure', async () => { throw new Error('read failure'); }]
     ];
-    for (const [_caseName, thirdRead] of cases) {
+    for (const [, thirdRead] of cases) {
       let reads = 0;
       const monitor = new PolicyMonitor({
         fileSystem: {
@@ -227,8 +227,8 @@ describe('PolicyMonitor RED contract', () => {
 
   it.each([
     ['wrong policy version', { ...currentStatus, policyVersion: 'other-policy' }],
-    ['duplicate source identity', { ...currentStatus, sourceStatuses: [currentStatus.sourceStatuses[0], currentStatus.sourceStatuses[0], ...currentStatus.sourceStatuses.slice(2)] }],
-    ['unknown source identity', { ...currentStatus, sourceStatuses: [{ ...currentStatus.sourceStatuses[0], sourceId: 'unknown' }, ...currentStatus.sourceStatuses.slice(1)] }],
+    ['duplicate source identity', { ...currentStatus, sourceStatuses: [currentStatus.sourceStatuses[0]!, currentStatus.sourceStatuses[0]!, ...currentStatus.sourceStatuses.slice(2)] }],
+    ['unknown source identity', { ...currentStatus, sourceStatuses: [{ ...currentStatus.sourceStatuses[0]!, sourceId: 'unknown' }, ...currentStatus.sourceStatuses.slice(1)] }],
     ['missing source identity', { ...currentStatus, sourceStatuses: currentStatus.sourceStatuses.slice(0, 4) }],
     ['sparse source statuses', (() => { const statuses = [...currentStatus.sourceStatuses]; delete statuses[2]; return { ...currentStatus, sourceStatuses: statuses }; })()],
     ['Array subclass source statuses', { ...currentStatus, sourceStatuses: new (class extends Array<typeof currentStatus.sourceStatuses[number]> {})(...currentStatus.sourceStatuses) }],
@@ -291,9 +291,9 @@ describe('PolicyMonitor RED contract', () => {
         return 'rules';
       }
     });
-    const symbol = { ...currentStatus.sourceStatuses[0], [Symbol('hidden')]: true };
-    const hidden = Object.defineProperty({ ...currentStatus.sourceStatuses[0] }, 'hidden', { value: true });
-    const nonPlain = Object.create(currentStatus.sourceStatuses[0]);
+    const symbol = { ...currentStatus.sourceStatuses[0]!, [Symbol('hidden')]: true };
+    const hidden = Object.defineProperty({ ...currentStatus.sourceStatuses[0]! }, 'hidden', { value: true });
+    const nonPlain = Object.create(currentStatus.sourceStatuses[0]!);
     const reflectionThrowing = new Proxy({}, { getOwnPropertyDescriptor() { throw new Error('trap'); } });
 
     for (const sourceStatus of [accessor, symbol, hidden, nonPlain, reflectionThrowing]) {

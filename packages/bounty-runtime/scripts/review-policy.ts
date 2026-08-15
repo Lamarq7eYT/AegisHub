@@ -1,7 +1,13 @@
-import { resolve } from 'node:path';
+import { createHash } from 'node:crypto';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import type { PolicySnapshot } from '@aegishub/bounty-core';
+import {
+  FIXED_POLICY_ENFORCEMENT_SHA256,
+  policyFingerprint,
+  policySnapshotSchema,
+  type PolicySnapshot
+} from '@aegishub/bounty-core';
 
 import type {
   FetchPolicySourceForReviewInput,
@@ -10,7 +16,7 @@ import type {
   PolicySourceReviewResult,
   PolicySourceUrl
 } from '../src/policy/source-client.js';
-import { fetchPolicySourceForReview } from '../src/policy/source-client.js';
+import { fetchPolicySourceForReview, POLICY_SOURCES } from '../src/policy/source-client.js';
 import {
   REVIEWED_POLICY_SNAPSHOT_DIRECTORY,
   REVIEWED_POLICY_SNAPSHOT_PATH
@@ -108,9 +114,221 @@ export function createNodeReviewPolicyCliDependencies(
   };
 }
 
-/** API-only RED seam. It must remain side-effect free until the GREEN cycle. */
-export async function reviewPolicy(_input: ReviewPolicyInput): Promise<ReviewPolicyResult> {
-  throw new PolicyReviewError('unimplemented_policy_review');
+export async function reviewPolicy(input: ReviewPolicyInput): Promise<ReviewPolicyResult> {
+  const existing = await readExistingSnapshot(input.fileSystem);
+  const reviewedAt = parseReviewArguments(input.args, existing);
+  if (reviewedAt !== undefined && existing === undefined) {
+    throw new PolicyReviewError('invalid_policy_review_snapshot');
+  }
+  const candidates = await fetchAndValidateCandidates(input.fetchSource);
+
+  emitPreview(input.writeOutput, existing, candidates);
+  if (reviewedAt === undefined) {
+    return existing === undefined
+      ? { mode: 'preview', candidates }
+      : { mode: 'preview', currentSnapshot: existing, candidates };
+  }
+  if (existing === undefined) {
+    throw new PolicyReviewError('invalid_policy_review_snapshot');
+  }
+  const nextSnapshot = buildReviewedSnapshot(existing, candidates, reviewedAt);
+  const serialized = `${JSON.stringify(nextSnapshot, null, 2)}\n`;
+  let temporaryPath: string;
+  try {
+    temporaryPath = await input.fileSystem.writeTemporaryFile(REVIEWED_POLICY_SNAPSHOT_DIRECTORY, serialized);
+  } catch {
+    throw new PolicyReviewError('invalid_policy_review_filesystem');
+  }
+  if (!isSafeTemporaryPath(temporaryPath)) {
+    throw new PolicyReviewError('invalid_policy_review_filesystem');
+  }
+  try {
+    await input.fileSystem.renameTemporaryFile(temporaryPath, REVIEWED_POLICY_SNAPSHOT_PATH);
+  } catch {
+    throw new PolicyReviewError('invalid_policy_review_filesystem');
+  }
+  return { mode: 'write', snapshot: nextSnapshot };
+}
+
+async function readExistingSnapshot(
+  fileSystem: PolicyReviewFileSystem
+): Promise<Readonly<PolicySnapshot> | undefined> {
+  let contents: string | undefined;
+  try {
+    contents = await fileSystem.readFile(REVIEWED_POLICY_SNAPSHOT_PATH);
+  } catch {
+    throw new PolicyReviewError('invalid_policy_review_snapshot');
+  }
+  if (contents === undefined) return undefined;
+
+  let parsedJson: unknown;
+  try {
+    parsedJson = JSON.parse(contents) as unknown;
+  } catch {
+    throw new PolicyReviewError('invalid_policy_review_snapshot');
+  }
+  const parsed = policySnapshotSchema.safeParse(parsedJson);
+  if (!parsed.success || parsed.data.enforcementSha256 !== FIXED_POLICY_ENFORCEMENT_SHA256) {
+    throw new PolicyReviewError('invalid_policy_review_snapshot');
+  }
+  try {
+    return deepFreeze({ ...parsed.data, sources: parsed.data.sources.map((source) => ({ ...source })) });
+  } catch {
+    throw new PolicyReviewError('invalid_policy_review_snapshot');
+  }
+}
+
+function parseReviewArguments(
+  args: readonly string[],
+  existing: Readonly<PolicySnapshot> | undefined
+): string | undefined {
+  if (args.length === 0) return undefined;
+  if (args.length !== 3 || args[0] !== '--write' || args[1] !== '--reviewed-at') {
+    throw new PolicyReviewError('invalid_policy_review_arguments');
+  }
+  const reviewedAt = args[2];
+  if (reviewedAt === undefined || !isCanonicalIsoTimestamp(reviewedAt)) {
+    throw new PolicyReviewError('invalid_policy_review_arguments');
+  }
+  if (existing !== undefined && reviewedAt !== existing.reviewedAt) {
+    throw new PolicyReviewError('invalid_policy_review_arguments');
+  }
+  return reviewedAt;
+}
+
+type AvailablePolicySourceReviewResult = Extract<PolicySourceReviewResult, { state: 'available' }>;
+
+async function fetchAndValidateCandidates(
+  fetchSource: ReviewPolicyInput['fetchSource']
+): Promise<readonly AvailablePolicySourceReviewResult[]> {
+  const candidates: AvailablePolicySourceReviewResult[] = [];
+  for (const source of POLICY_SOURCES) {
+    let result: PolicySourceReviewResult;
+    try {
+      result = await fetchSource(source);
+    } catch {
+      throw new PolicyReviewError('invalid_policy_review_sources');
+    }
+    const validated = validateReviewResult(result, source.id, source.url);
+    if (validated === undefined) {
+      throw new PolicyReviewError('invalid_policy_review_sources');
+    }
+    candidates.push(validated);
+  }
+  return candidates;
+}
+
+function validateReviewResult(
+  value: unknown,
+  expectedSourceId: PolicySourceId,
+  expectedUrl: PolicySourceUrl
+): AvailablePolicySourceReviewResult | undefined {
+  const record = readPlainDataRecord(value);
+  if (record === undefined || record.state !== 'available') return undefined;
+  const expectedKeys = ['canonicalContent', 'checkedAt', 'observedSha256', 'sourceId', 'state', 'url'];
+  if (!hasExactKeys(record, expectedKeys)) return undefined;
+  if (record.sourceId !== expectedSourceId || record.url !== expectedUrl) return undefined;
+  if (typeof record.canonicalContent !== 'string' || !isSha256(record.observedSha256)) return undefined;
+  if (!isPlainDate(record.checkedAt)) return undefined;
+  const observedSha256 = createHash('sha256').update(record.canonicalContent, 'utf8').digest('hex');
+  if (observedSha256 !== record.observedSha256) return undefined;
+  return {
+    state: 'available',
+    sourceId: expectedSourceId,
+    url: expectedUrl,
+    checkedAt: record.checkedAt,
+    observedSha256,
+    canonicalContent: record.canonicalContent
+  };
+}
+
+function buildReviewedSnapshot(
+  existing: Readonly<PolicySnapshot>,
+  candidates: readonly AvailablePolicySourceReviewResult[],
+  reviewedAt: string
+): Readonly<PolicySnapshot> {
+  const next = {
+    ...existing,
+    reviewedAt,
+    sources: candidates.map((candidate) => ({
+      id: candidate.sourceId,
+      url: candidate.url,
+      retrievedAt: candidate.checkedAt.toISOString(),
+      contentSha256: candidate.observedSha256
+    }))
+  };
+  const parsed = policySnapshotSchema.safeParse(next);
+  if (!parsed.success || parsed.data.enforcementSha256 !== FIXED_POLICY_ENFORCEMENT_SHA256) {
+    throw new PolicyReviewError('invalid_policy_review_sources');
+  }
+  try {
+    policyFingerprint(parsed.data);
+  } catch {
+    throw new PolicyReviewError('invalid_policy_review_sources');
+  }
+  return deepFreeze(parsed.data);
+}
+
+function emitPreview(
+  writeOutput: (line: string) => void,
+  existing: Readonly<PolicySnapshot> | undefined,
+  candidates: readonly AvailablePolicySourceReviewResult[]
+): void {
+  for (const candidate of candidates) {
+    const old = existing?.sources.find((source) => source.id === candidate.sourceId)?.contentSha256 ?? 'absent';
+    writeOutput(`${candidate.sourceId} ${candidate.url} old: ${old} new: ${candidate.observedSha256}`);
+  }
+}
+
+function isSafeTemporaryPath(path: string): boolean {
+  if (typeof path !== 'string' || path.length === 0) return false;
+  const resolved = resolve(path);
+  return resolved !== REVIEWED_POLICY_SNAPSHOT_PATH && dirname(resolved) === REVIEWED_POLICY_SNAPSHOT_DIRECTORY;
+}
+
+function isCanonicalIsoTimestamp(value: string): boolean {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) && date.toISOString() === value;
+}
+
+function isPlainDate(value: unknown): value is Date {
+  return value instanceof Date && Object.getPrototypeOf(value) === Date.prototype && Number.isFinite(value.getTime());
+}
+
+function isSha256(value: unknown): value is string {
+  return typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
+}
+
+function readPlainDataRecord(value: unknown): Record<string, unknown> | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  try {
+    if (Object.getPrototypeOf(value) !== Object.prototype || Object.getOwnPropertySymbols(value).length > 0) {
+      return undefined;
+    }
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const output: Record<string, unknown> = {};
+    for (const [key, descriptor] of Object.entries(descriptors)) {
+      if (descriptor.enumerable !== true || !('value' in descriptor)) return undefined;
+      output[key] = descriptor.value;
+    }
+    return output;
+  } catch {
+    return undefined;
+  }
+}
+
+function hasExactKeys(record: Record<string, unknown>, expectedKeys: readonly string[]): boolean {
+  const actual = Object.keys(record).sort();
+  const expected = [...expectedKeys].sort();
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+}
+
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
+    for (const child of Object.values(value)) deepFreeze(child);
+    Object.freeze(value);
+  }
+  return value;
 }
 
 /** Injectable direct-execution seam; importing this module never invokes it. */

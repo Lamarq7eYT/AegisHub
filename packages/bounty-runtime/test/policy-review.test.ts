@@ -62,7 +62,10 @@ function snapshot(overrides: Partial<PolicySnapshot> = {}): PolicySnapshot {
   };
 }
 
-function available(sourceId: PolicySourceId, index: number): PolicyReviewFetchResult {
+function available(
+  sourceId: PolicySourceId,
+  index: number
+): Extract<PolicyReviewFetchResult, { state: 'available' }> {
   const source = POLICY_SOURCES[index];
   if (source === undefined) {
     throw new Error('test source index must be allowlisted');
@@ -246,14 +249,14 @@ describe('review-policy RED contract', () => {
   it.each([
     ['unavailable source', (source: PolicySourceId): PolicyReviewFetchResult => ({ state: 'unavailable', sourceId: source, url: POLICY_SOURCES[0].url })],
     ['malformed source', (source: PolicySourceId): PolicyReviewFetchResult => ({ state: 'malformed', sourceId: source, url: POLICY_SOURCES[0].url, reason: 'missing-main' })],
-    ['duplicate source result', (source: PolicySourceId): PolicyReviewFetchResult => available('rules', 0)],
+    ['duplicate source result', (): PolicyReviewFetchResult => available('rules', 0)],
     ['mismatched source URL', (source: PolicySourceId): PolicyReviewFetchResult => ({ ...available(source, 0), url: POLICY_SOURCES[1].url })]
   ])('refuses write without mutation for %s', async (_caseName, result) => {
     const trace: string[] = [];
     await expect(
       reviewPolicy({
         args: ['--write', '--reviewed-at', reviewedAt],
-        async fetchSource(source) { return result(source.id); },
+        async fetchSource() { return result('rules'); },
         fileSystem: fakeFileSystem(JSON.stringify(snapshot()), trace),
         writeOutput() {}
       })

@@ -272,11 +272,99 @@ export async function fetchPolicySource(input: FetchPolicySourceInput): Promise<
   throw outcome.error;
 }
 
-/** API-only RED seam for the review script; it must reuse the policy transport in GREEN. */
+/** Review-only transport that returns canonical content while preserving the normal source controls. */
 export async function fetchPolicySourceForReview(
-  _input: FetchPolicySourceForReviewInput
+  input: FetchPolicySourceForReviewInput
 ): Promise<PolicySourceReviewResult> {
-  throw new PolicySourceReviewError('unimplemented_policy_review');
+  const validated = validateFetchInput({
+    sourceId: input.sourceId,
+    url: input.url,
+    expectedSha256: '0'.repeat(64),
+    dependencies: input.dependencies
+  });
+  const setTimeout = validated.dependencies.setTimeout;
+  const clearTimeout = validated.dependencies.clearTimeout;
+  let timer: unknown;
+  try {
+    timer = setTimeout(() => {
+      validated.controller.abort();
+    }, POLICY_SOURCE_TIMEOUT_MS);
+  } catch {
+    throw new PolicySourceInputError('invalid_policy_source_input');
+  }
+
+  let result: PolicySourceReviewResult | undefined;
+  let operationError: unknown;
+  try {
+    let response: PolicyFetchResponse;
+    try {
+      response = await validated.dependencies.fetch(validated.url, {
+        redirect: 'manual',
+        credentials: 'omit',
+        headers: emptyHeaders,
+        signal: validated.controller.signal
+      });
+    } catch {
+      result = { state: 'unavailable', sourceId: validated.sourceId, url: validated.url };
+      response = undefined as never;
+    }
+    if (result === undefined) {
+      if (!isPolicyFetchResponse(response)) {
+        throw new PolicySourceInputError('invalid_policy_source_input');
+      }
+      if (response.status >= 300 && response.status < 400) {
+        result = { state: 'malformed', sourceId: validated.sourceId, url: validated.url, reason: 'redirect-response' };
+      } else if (response.status < 200 || response.status >= 300) {
+        result = { state: 'malformed', sourceId: validated.sourceId, url: validated.url, reason: 'http-error-response' };
+      } else {
+        let body: string;
+        try {
+          body = await response.text();
+        } catch {
+          result = { state: 'unavailable', sourceId: validated.sourceId, url: validated.url };
+          body = '';
+        }
+        if (result === undefined) {
+          try {
+            const canonicalContent = canonicalizePolicyHtml(body);
+            const observedSha256 = createHash('sha256').update(canonicalContent, 'utf8').digest('hex');
+            result = {
+              state: 'available',
+              sourceId: validated.sourceId,
+              url: validated.url,
+              checkedAt: validated.checkedAt,
+              observedSha256,
+              canonicalContent
+            };
+          } catch (error) {
+            if (error instanceof PolicySourceContentError) {
+              result = {
+                state: 'malformed',
+                sourceId: validated.sourceId,
+                url: validated.url,
+                reason: error.code
+              };
+            } else {
+              throw error;
+            }
+          }
+        }
+      }
+    }
+  } catch (error) {
+    operationError = error;
+  }
+
+  let cleanupFailed = false;
+  try {
+    clearTimeout(timer);
+  } catch {
+    cleanupFailed = true;
+  }
+  if (cleanupFailed) throw new PolicySourceInputError('invalid_policy_source_input');
+  if (operationError !== undefined) throw operationError;
+  if (result === undefined) throw new PolicySourceInputError('invalid_policy_source_input');
+  return result;
 }
 
 async function captureOutcome<T>(operation: () => Promise<T>): Promise<OperationOutcome<T>> {
