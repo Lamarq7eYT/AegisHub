@@ -229,3 +229,10 @@ The last pushed commit remains `734877f` (`feat(bounty): implement phase 2 local
 The prerequisite App settings check was completed in the authenticated owner session on GitHub. The official `Permissions & events` page showed `Actions: No access` and `Workflows: No access` for **AegisHub Bounty Lab**. No settings were changed. Consequently, the owner baseline for the workflow mutation cannot currently succeed; a live run now would be an owner-baseline failure and would be inconclusive by design, not a candidate. The detailed sanitized check is recorded in `docs/superpowers/research/2026-08-15-hypothesis-2-app-permission-check.md`. Enabling `Workflows: Read and write`, reinstalling or reauthorizing the App if GitHub requests it, and any subsequent live execution require a separate explicit user decision.
 
 After the harness edits, the non-live runtime gate still passed: 253 tests passed, one live test was skipped, typecheck passed, and `git diff --check main` passed. No live GitHub request was made.
+
+
+## Continuation update — Hypothesis 2 implementation published
+
+The local Hypothesis 2 implementation was committed and pushed to `origin/codex/bounty-mode-foundation` as `2015113` (`feat(bounty): implement hypothesis 2 workflow write boundary`). Local `HEAD` and the remote branch now resolve to the same commit, and the worktree is clean.
+
+This publication does not authorize live execution. The App permission check remains the blocking prerequisite: `Workflows` is currently `No access`. The next human decision is whether to change the App to `Workflows: Read and write` and reauthorize the installation, or to leave Hypothesis 2 unexecuted/inconclusive under the current permissions. No live request, workflow execution, secret access, arbitrary content, severity assignment, or submission has occurred.
