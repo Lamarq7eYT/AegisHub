@@ -81,7 +81,7 @@ Task 4 is complete. Authentication uses session-only credentials by default, exp
 
 ## Next continuation point
 
-Continue with **Task 13 — Step 1: add local-state exclusions and non-secret environment examples**. Document safe setup, harden CI, update repository metadata, and retain the Task 12 live validation as pending because it requires the user present. The completed Task 12 commit is recorded below.
+Continue with **Task 14 — Step 1: perform the completion gate and acceptance review**. Inspect forbidden constructs, formatter/diff integrity, focused security regressions, full non-live gates and record the user-presence live validation as pending. The completed Task 13 commit is recorded below.
 
 Before claiming Phase 1 completion, continue Task by Task through the remaining plan, keep this checkpoint current after every completed Task, run all non-live verification gates, and record the live gate as pending unless the user-owned lab is explicitly available and verified. Never request or store passwords, cookies, 2FA codes, access tokens, refresh tokens, or reserve-account credentials in chat or fixtures.
 
@@ -147,6 +147,12 @@ Task 11 verification: focused CLI tests passed 10 tests; CLI lint passed with ze
 Task 12 is complete in commit `8f4c730 test(bounty): cover safe and anomalous boundaries`. It adds a stateful loopback-only fake GitHub server with synthetic Device Flow states, immutable identity fixtures, marker mutations, bypass toggle, rename/name-reuse modeling, sanitized request logs, transport faults, lost mutation responses and cleanup failures. Integration tests exercise the real guarded transport, bundled planner, differential classification, atomic evidence write/inspect/export, expected safe boundary, anomalous lab-owned marker disclosure, retry/stop semantics, out-of-lab detection and no-token logging. The live test is explicitly skipped unless `AEGISHUB_BOUNTY_LIVE=1`.
 
 Task 12 verification: the full runtime suite passed 232 tests; loopback integration passed 19 tests with 1 live test skipped; runtime lint passed with zero errors and non-fatal security warnings; typecheck and build passed; `git diff --check` passed before commit. The user-presence live gate remains pending by design: it must not be simulated with another target or credentials.
+
+## Continuation update — Task 13 completed
+
+Task 13 is complete in commit `78843ab docs(bounty): document safe lab operation`. It adds the local `.aegishub/` exclusion while keeping `.aegishub-lab.json` trackable, a non-secret `.env.example`, the complete `docs/BOUNTY_MODE.md` operator guide, explicit Bounty Mode ownership and safety boundaries in the architecture and security documentation, README package/roadmap links, and a job-level `AEGISHUB_BOUNTY_LIVE: "0"` CI environment. The guide documents Device Flow, expiring tokens, session-only versus `--persist`, all supported commands, fixed budgets, stop conditions, dirty recovery, bundle fields, redaction, responsible disclosure and the pending live gate.
+
+Task 13 verification: the documented CLI build and all six non-live `bounty ... --help`/help-list commands passed; `git diff --check` passed before commit. The worktree was clean at commit creation and the branch is ahead of origin by one commit. The live gate remains pending because it requires user presence and an already verified owned lab.
 
 ## Commands to resume
 
