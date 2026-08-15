@@ -75,19 +75,34 @@ The analyst pack is schema-first, recursively frozen, and contains only sanitize
 
 ## Known problems and TODOs
 
-The runtime Task 2 policy snapshot loader/monitor and review script still contain incomplete seams and lint/typecheck issues that predate Task 3. Runtime tests must first build `@aegishub/bounty-core` when run independently. The monorepo baseline and final Rust gates require Rust tooling (`cargo`) in the execution environment. These issues should be addressed only in their corresponding plan tasks or as narrowly demonstrated compatibility fixes; do not weaken the safety model or modify the Rust scanner casually.
+Task 2 runtime policy snapshot loading, freshness monitoring, review transport, and atomic review script are now complete and verified. Runtime tests must first build `@aegishub/bounty-core` when run independently because the workspace package resolves through its built output. The monorepo baseline and final Rust gates still require Rust tooling (`cargo`) in the execution environment. Do not weaken the safety model or modify the Rust scanner casually.
 
-No Task 4 authentication work has been started in this continuation. Do not refactor or redo the correctly implemented Task 3 modules/tests. Do not change the Rust scanner, existing scan/report/auth behavior, policy gating, catalog boundaries, or credential-storage rules.
+Task 4 is complete. Authentication uses session-only credentials by default, explicit `persist: true` for vault storage, separate owner/researcher records, optional dynamically loaded keyring storage, strict GitHub App Device Flow mapping, immediate GET /user verification, immutable-ID separation, expiry deletion, logout, and local revocation. The optional native keyring remains external in the runtime bundle to avoid cross-platform native-binary resolution. Do not refactor or redo the correctly implemented Task 3 or Task 4 modules/tests. Do not change the Rust scanner, existing scan/report behavior, policy gating, catalog boundaries, or credential-storage rules.
 
 ## Next continuation point
 
-Continue with **Task 4 — Step 1: write failing vault tests**. Implement session-only and optional keychain behavior only after the focused failing tests are observed. The next intended commit from the plan is:
+Continue with **Task 5 — Step 1: write failing lab-store tests**. Implement the local immutable lab store only after observing the focused RED state. The next intended commit from the plan is:
 
 ```text
-feat(bounty): add separated Device Flow identities
+feat(bounty): verify immutable owned-resource labs
 ```
 
 Before claiming Phase 1 completion, continue Task by Task through the remaining plan, keep this checkpoint current after every completed Task, run all non-live verification gates, and record the live gate as pending unless the user-owned lab is explicitly available and verified. Never request or store passwords, cookies, 2FA codes, access tokens, refresh tokens, or reserve-account credentials in chat or fixtures.
+
+## Continuation update — 2026-08-15
+
+New commits since the previous checkpoint:
+
+- `fefe1f6 feat(bounty): complete reviewed policy runtime`
+- `d82e143 feat(bounty): add separated Device Flow identities`
+- `9589120 fix(bounty): require explicit credential persistence`
+
+Verification after the update:
+
+- bounty-core: 126 tests passed, typecheck passed, build passed.
+- bounty-runtime: 145 tests passed, typecheck passed, lint passed with non-fatal security-rule warnings, build passed after externalizing the optional native keyring module.
+- Task 4 focused auth gate: 20 tests passed and seeded token search in captured output returned zero matches.
+- Worktree is clean at checkpoint creation; branch is ahead of origin by five commits.
 
 ## Commands to resume
 
