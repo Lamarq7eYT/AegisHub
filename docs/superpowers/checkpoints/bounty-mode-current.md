@@ -81,7 +81,7 @@ Task 4 is complete. Authentication uses session-only credentials by default, exp
 
 ## Next continuation point
 
-Continue with **Task 9 — Step 1: write evidence writer tests**. Implement atomic sanitized evidence, reports, checksums, retention, and immutable analysis-pack boundaries only after observing the focused RED states. The completed Task 8 commit is recorded below.
+Continue with **Task 10 — Step 1: add the failing built-in experiment contract test**. Load the bundled private-contents boundary experiment by ID and validate its read-only actors, repeats, budgets, expected denied statuses, and no-cleanup invariant. The completed Task 9 commit is recorded below.
 
 Before claiming Phase 1 completion, continue Task by Task through the remaining plan, keep this checkpoint current after every completed Task, run all non-live verification gates, and record the live gate as pending unless the user-owned lab is explicitly available and verified. Never request or store passwords, cookies, 2FA codes, access tokens, refresh tokens, or reserve-account credentials in chat or fixtures.
 
@@ -123,6 +123,12 @@ Task 7 verification: bounty-runtime passed 187 tests, typecheck, lint with zero 
 Task 8 is complete in commit `77cc9b8 feat(bounty): run experiments with verified cleanup`. It adds the append-only write-ahead mutation journal with fsync and hash links, state-machine transition validation, LabVerifier compatibility, exclusive active-run leases, cooperative emergency stop with run/nonce pairing, PID recovery, dirty-state persistence and verification-gated resolution, and the controlled ExperimentRunner with phase ordering, single-use approval consumption, policy/stop checks, lost-mutation verification, reverse cleanup, dirty marking, and differential classification.
 
 Task 8 verification: bounty-core passed 131 tests, lint with zero errors and non-fatal security warnings, typecheck, and build. Bounty-runtime passed 204 tests across 16 files, lint with zero errors and non-fatal security warnings, typecheck, and build. The focused Task 8 suite passed 16 tests; `git diff --check` passed before commit. The worktree was clean at commit creation and the branch is ahead of origin by one commit.
+
+## Continuation update — Task 9 completed
+
+Task 9 is complete in commit `b2b11e4 feat(bounty): export sanitized evidence bundles`. It adds schema-first atomic evidence writing under `.aegishub/runs/<run-id>`, canonical JSON/NDJSON/Markdown layout, final secret scanning with run-local redaction, sorted SHA-256 checksums, overwrite and symlink guards, safe temporary-directory failure handling, verified inspect, deterministic reports and sanitized catalog-only reproduction instructions, plus atomic analysis-pack export validated by `analystInputSchema`.
+
+Task 9 verification: bounty-core build passed. Bounty-runtime passed 204 tests across the existing suite plus 8 focused evidence/report tests, lint with zero errors and non-fatal security warnings, typecheck, and build. `git diff --check` passed before commit. The worktree was clean at commit creation and the branch is ahead of origin by one commit.
 
 ## Commands to resume
 
