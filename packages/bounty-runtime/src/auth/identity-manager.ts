@@ -12,6 +12,10 @@ import type {
 } from './device-flow.js';
 import type { CredentialRecord, KeyringCredentialVault, MemoryCredentialVault } from './vault.js';
 
+function isExpired(record: CredentialRecord, now: Date): boolean {
+  return record.expiresAt !== undefined && now.getTime() >= Date.parse(record.expiresAt);
+}
+
 export interface AuthenticatedUserGateway {
   getAuthenticatedUser(accessToken: string): Promise<unknown>;
 }
@@ -19,10 +23,12 @@ export interface AuthenticatedUserGateway {
 export interface LoginInput {
   readonly actor: AuthenticatedActor;
   readonly onVerification: (verification: DeviceVerification) => Promise<void> | void;
+  readonly persist?: boolean;
 }
 
 export interface RequireIdentityInput {
   readonly onVerification: (verification: DeviceVerification) => Promise<void> | void;
+  readonly persist?: boolean;
 }
 
 export interface IdentityStatus {
@@ -61,6 +67,7 @@ export class IdentityManager {
   readonly #deviceFlow: Pick<DeviceFlowClient, 'authenticate'>;
   readonly #userGateway: AuthenticatedUserGateway;
   readonly #now: () => Date;
+  readonly #sessionRecords = new Map<AuthenticatedActor, CredentialRecord>();
 
   constructor(options: IdentityManagerOptions) {
     this.#vault = options.vault;
@@ -109,7 +116,12 @@ export class IdentityManager {
         ? { refreshTokenExpiresAt: credential.refreshTokenExpiresAt }
         : {})
     };
-    await this.#vault.set(input.actor, record);
+    if (input.persist === true) {
+      this.#sessionRecords.delete(input.actor);
+      await this.#vault.set(input.actor, record);
+    } else {
+      this.#sessionRecords.set(input.actor, record);
+    }
     return identity;
   }
 
@@ -121,9 +133,13 @@ export class IdentityManager {
       throw new IdentityManagerError('identity_invalid_actor');
     }
 
-    const existing = await this.#vault.get(actor);
+    const existing = await this.getActiveRecord(actor);
     if (existing !== undefined) return existing.identity;
-    return this.login({ actor, onVerification: input.onVerification });
+    return this.login({
+      actor,
+      onVerification: input.onVerification,
+      ...(input.persist !== undefined ? { persist: input.persist } : {})
+    });
   }
 
   async getUsableToken(actor: AuthenticatedActor): Promise<string> {
@@ -131,7 +147,7 @@ export class IdentityManager {
       throw new IdentityManagerError('identity_invalid_actor');
     }
 
-    const record = await this.#vault.get(actor);
+    const record = await this.getActiveRecord(actor);
     if (record === undefined) throw new IdentityManagerError('identity_missing');
     return record.accessToken;
   }
@@ -139,7 +155,7 @@ export class IdentityManager {
   async status(): Promise<IdentityStatus[]> {
     const statuses: IdentityStatus[] = [];
     for (const actor of ['owner', 'researcher'] as const) {
-      const record = await this.#vault.get(actor);
+      const record = await this.getActiveRecord(actor);
       if (record === undefined) {
         statuses.push({ actor, configured: false });
       } else {
@@ -153,11 +169,25 @@ export class IdentityManager {
     if (!authenticatedActorSchema.safeParse(actor).success) {
       throw new IdentityManagerError('identity_invalid_actor');
     }
+    this.#sessionRecords.delete(actor);
     await this.#vault.delete(actor);
   }
 
   async revokeLocal(): Promise<{ settingsUrl: 'https://github.com/settings/applications' }> {
+    this.#sessionRecords.clear();
     await this.#vault.clear();
     return { settingsUrl: 'https://github.com/settings/applications' };
+  }
+
+  private async getActiveRecord(actor: AuthenticatedActor): Promise<CredentialRecord | undefined> {
+    const sessionRecord = this.#sessionRecords.get(actor);
+    if (sessionRecord !== undefined) {
+      if (isExpired(sessionRecord, this.#now())) {
+        this.#sessionRecords.delete(actor);
+      } else {
+        return sessionRecord;
+      }
+    }
+    return this.#vault.get(actor);
   }
 }

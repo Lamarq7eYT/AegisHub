@@ -45,8 +45,22 @@ describe('IdentityManager', () => {
       })
     });
 
-    expect(await manager.login({ actor: 'owner', onVerification: () => undefined })).toEqual(ownerIdentity);
+    expect(await manager.login({ actor: 'owner', onVerification: () => undefined, persist: true })).toEqual(ownerIdentity);
     expect(await vault.get('owner')).toMatchObject({ actor: 'owner', identity: ownerIdentity });
+  });
+
+  it('keeps unpersisted login credentials in the process session only', async () => {
+    const vault = new MemoryCredentialVault();
+    const manager = new IdentityManager({
+      vault,
+      deviceFlow: new FakeDeviceFlow(),
+      userGateway: makeGateway({ ghu_fixture_owner_access_1234567890: ownerIdentity })
+    });
+
+    await manager.login({ actor: 'owner', onVerification: () => undefined });
+
+    expect(await vault.get('owner')).toBeUndefined();
+    await expect(manager.getUsableToken('owner')).resolves.toBe('ghu_fixture_owner_access_1234567890');
   });
 
   it('accepts a login-name change when immutable ID is unchanged', async () => {
@@ -54,10 +68,10 @@ describe('IdentityManager', () => {
     const gateway = makeGateway({ ghu_fixture_owner_access_1234567890: ownerIdentity });
     const manager = new IdentityManager({ vault, deviceFlow: new FakeDeviceFlow(), userGateway: gateway });
 
-    await manager.login({ actor: 'owner', onVerification: () => undefined });
+    await manager.login({ actor: 'owner', onVerification: () => undefined, persist: true });
     gateway.getAuthenticatedUser = async () => renamedOwnerIdentity;
 
-    expect(await manager.login({ actor: 'owner', onVerification: () => undefined })).toEqual(renamedOwnerIdentity);
+    expect(await manager.login({ actor: 'owner', onVerification: () => undefined, persist: true })).toEqual(renamedOwnerIdentity);
     expect((await vault.get('owner'))?.identity.login).toBe('owner-renamed-fixture');
   });
 
@@ -72,8 +86,8 @@ describe('IdentityManager', () => {
       })
     });
 
-    await manager.login({ actor: 'owner', onVerification: () => undefined });
-    await expect(manager.login({ actor: 'researcher', onVerification: () => undefined })).rejects.toMatchObject({
+    await manager.login({ actor: 'owner', onVerification: () => undefined, persist: true });
+    await expect(manager.login({ actor: 'researcher', onVerification: () => undefined, persist: true })).rejects.toMatchObject({
       code: 'identity_roles_must_be_distinct'
     });
     expect(await vault.get('researcher')).toBeUndefined();
@@ -109,7 +123,7 @@ describe('IdentityManager', () => {
       userGateway: makeGateway({ ghu_fixture_owner_access_1234567890: ownerIdentity })
     });
 
-    expect(await manager.requireIdentity('owner', { onVerification: () => undefined })).toEqual(ownerIdentity);
+    expect(await manager.requireIdentity('owner', { onVerification: () => undefined, persist: true })).toEqual(ownerIdentity);
     expect((await vault.get('owner'))?.accessToken).toBe('ghu_fixture_owner_access_1234567890');
   });
 
@@ -124,8 +138,8 @@ describe('IdentityManager', () => {
       })
     });
 
-    await manager.login({ actor: 'owner', onVerification: () => undefined });
-    await manager.login({ actor: 'researcher', onVerification: () => undefined });
+    await manager.login({ actor: 'owner', onVerification: () => undefined, persist: true });
+    await manager.login({ actor: 'researcher', onVerification: () => undefined, persist: true });
     await manager.logout('owner');
     expect(await vault.get('owner')).toBeUndefined();
     expect(await vault.get('researcher')).toBeDefined();

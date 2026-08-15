@@ -127,12 +127,13 @@ export interface KeyringCredentialVaultOptions {
 }
 
 export class KeyringCredentialVault {
-  readonly #entryFactory: KeyringEntryFactory;
+  readonly #entryFactory: KeyringEntryFactory | undefined;
   readonly #clock: VaultClock;
+  #nativeEntryFactory: Promise<KeyringEntryFactory> | undefined;
   #capability: 'keychain' | 'unavailable' | undefined;
 
   constructor(options: KeyringCredentialVaultOptions = {}) {
-    this.#entryFactory = options.entryFactory ?? createNativeKeyringEntryFactory();
+    this.#entryFactory = options.entryFactory;
     this.#clock = clockOrDefault(options.now === undefined ? undefined : { now: options.now });
   }
 
@@ -143,7 +144,8 @@ export class KeyringCredentialVault {
     const account = `capability-probe-${randomUUID()}`;
     let entry: KeyringEntry | undefined;
     try {
-      entry = this.#entryFactory(CREDENTIAL_SERVICE, account);
+      const entryFactory = await this.getEntryFactory();
+      entry = entryFactory(CREDENTIAL_SERVICE, account);
       entry.setPassword('aegishub-capability-probe');
       if (entry.getPassword() !== 'aegishub-capability-probe') {
         throw new Error('keychain_probe_mismatch');
@@ -165,7 +167,7 @@ export class KeyringCredentialVault {
   async get(actor: AuthenticatedActor): Promise<CredentialRecord | undefined> {
     assertActor(actor);
     await this.ensureCapability();
-    const entry = this.#entryFactory(CREDENTIAL_SERVICE, ACCOUNT_BY_ACTOR[actor]);
+    const entry = (await this.getEntryFactory())(CREDENTIAL_SERVICE, ACCOUNT_BY_ACTOR[actor]);
     let serialized: string | null;
     try {
       serialized = entry.getPassword();
@@ -200,7 +202,7 @@ export class KeyringCredentialVault {
       throw new Error('credential_record_invalid');
     }
     await this.ensureCapability();
-    const entry = this.#entryFactory(CREDENTIAL_SERVICE, ACCOUNT_BY_ACTOR[actor]);
+    const entry = (await this.getEntryFactory())(CREDENTIAL_SERVICE, ACCOUNT_BY_ACTOR[actor]);
     try {
       entry.setPassword(JSON.stringify(parsed.data));
     } catch {
@@ -211,7 +213,7 @@ export class KeyringCredentialVault {
   async delete(actor: AuthenticatedActor): Promise<void> {
     assertActor(actor);
     await this.ensureCapability();
-    const entry = this.#entryFactory(CREDENTIAL_SERVICE, ACCOUNT_BY_ACTOR[actor]);
+    const entry = (await this.getEntryFactory())(CREDENTIAL_SERVICE, ACCOUNT_BY_ACTOR[actor]);
     try {
       entry.deletePassword();
     } catch {
@@ -229,6 +231,18 @@ export class KeyringCredentialVault {
     await this.capability();
   }
 
+  private async getEntryFactory(): Promise<KeyringEntryFactory> {
+    if (this.#entryFactory !== undefined) return this.#entryFactory;
+    if (this.#nativeEntryFactory === undefined) {
+      this.#nativeEntryFactory = loadNativeKeyringEntryFactory();
+    }
+    try {
+      return await this.#nativeEntryFactory;
+    } catch {
+      throw new Error('keychain_unavailable');
+    }
+  }
+
   private async deleteMalformed(entry: KeyringEntry): Promise<void> {
     try {
       entry.deletePassword();
@@ -238,6 +252,12 @@ export class KeyringCredentialVault {
   }
 }
 
-function createNativeKeyringEntryFactory(): KeyringEntryFactory {
-  throw new Error('keychain_unavailable');
+async function loadNativeKeyringEntryFactory(): Promise<KeyringEntryFactory> {
+  try {
+    const keyring = await import('@napi-rs/keyring');
+    if (typeof keyring.Entry !== 'function') throw new Error('keyring_entry_unavailable');
+    return (service, account) => new keyring.Entry(service, account);
+  } catch {
+    throw new Error('keychain_unavailable');
+  }
 }
