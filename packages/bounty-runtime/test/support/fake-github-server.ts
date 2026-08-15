@@ -187,6 +187,28 @@ export class FakeGithubServer {
       return sendJson(response, 404, { message: 'not found' });
     }
 
+    if (request.url === '/graphql' && request.method === 'POST') {
+      let parsed: { readonly operationName?: unknown } = {};
+      try {
+        parsed = JSON.parse(body) as { readonly operationName?: unknown };
+      } catch {
+        return sendJson(response, 400, { errors: [{ message: 'invalid graphql body' }] });
+      }
+      if (parsed.operationName !== 'RepositoryLabMarkerV1') return sendJson(response, 400, { errors: [{ message: 'unknown document' }] });
+      if (actor === 'owner' || this.#bypass) {
+        return sendJson(response, 200, {
+          data: {
+            repository: {
+              databaseId: this.#repositoryId,
+              isPrivate: true,
+              object: { text: JSON.stringify({ schemaVersion: 1, labId: '95f38cca-42e2-4b7d-82e6-f13f4549b2f3', repositoryId: this.#repositoryId, ownerId: 1001, controlNonce: 'synthetic-control-nonce-123456' }) }
+            }
+          }
+        });
+      }
+      return sendJson(response, 200, { data: { repository: null } });
+    }
+
     if (request.url === markerPath && request.method === 'PUT') {
       this.#marker = true;
       if (this.#fault === 'drop-after-mutation') {
@@ -240,6 +262,7 @@ function sha256(value: string): string {
 }
 
 function operationIdForPath(path: string): string | undefined {
+  if (path === '/graphql') return 'github.graphql.contents.get-lab-marker.v1';
   if (path.includes('/contents/.aegishub-lab.json')) return 'github.rest.contents.get-lab-marker.v1';
   if (path.startsWith('/repos/')) return 'github.rest.repos.get.v1';
   if (path === '/user') return 'github.rest.users.get-authenticated.v1';

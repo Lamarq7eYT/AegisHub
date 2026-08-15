@@ -1,9 +1,9 @@
 # AegisHub Bounty Mode — Phase 2
 ## Consistência de autorização entre REST e GraphQL em recurso privado próprio
 
-**Status:** especificação preparada para revisão humana; nenhuma implementação ou execução live autorizada por este documento.  
-**Aprovado para desenho:** usuário do projeto, 2026-08-15.  
-**Implementação:** pendente de aprovação separada.  
+**Status:** especificação preparada para revisão humana; nenhuma implementação ou execução live autorizada por este documento.
+**Aprovado para desenho:** usuário do projeto, 2026-08-15.
+**Implementação:** pendente de aprovação separada.
 **Execução live:** proibida até que a implementação passe pelos gates locais e o usuário aprove uma sessão específica.
 
 ## 1. Objetivo e não-objetivos
@@ -12,7 +12,11 @@ Esta fase investiga uma única propriedade de segurança: **as interfaces REST e
 
 O objetivo não é provar que uma diferença de formato, status ou mensagem seja uma vulnerabilidade. O objetivo é detectar, com normalização determinística e repetição mínima, se um ator sem acesso obtém os campos protegidos do marcador por uma interface enquanto a outra interface nega o acesso. A especificação evita metadata adicional para manter a hipótese estreita e o orçamento abaixo do teto da Phase 1.
 
+O limiar de candidato é deliberadamente alto: o resultado deve demonstrar acesso não autorizado a conteúdo privado protegido, execução de uma ação que o ator não poderia executar ou persistência de acesso após uma revogação — sempre com impacto verificável no recurso próprio e repetição consistente. Nome, login, organização, metadata pública, mensagem de erro, status diferente, header, timing, rate-limit, diferença visual ou outra informação sem impacto de confidencialidade/integridade não pode gerar `anomalous`; deve ser classificado como `expected` ou `inconclusive`.
+
 Esta fase não inclui exploração genérica, URLs arbitrárias, introspecção GraphQL, consultas fornecidas pelo usuário, mutações de conteúdo, alterações de permissões, organizações, Apps/OAuth policy, SAML, Actions, Packages, Codespaces, SSRF, disponibilidade, timing, enumeração, scraping, brute force, PII ou dados de terceiros. Também não inclui submissão ao HackerOne, escolha automática de severidade ou divulgação pública.
+
+A fase inclui um requisito adicional de **candidate-stop**: ao primeiro resultado que satisfaça a condição de candidato, o runner deve interromper o agendamento de novas operações, preservar somente as observações sanitizadas já obtidas, não tentar confirmar severidade, não ampliar o alvo e não executar uma segunda cadeia exploratória. Uma reprodução mínima posterior só poderá ser criada após revisão humana explícita e deverá continuar limitada ao recurso próprio. O estado `anomalous` nunca será convertido automaticamente em vulnerabilidade confirmada.
 
 A política oficial do GitHub destaca acesso a recursos privados sem autorização adequada e escalada via Apps/OAuth como áreas de foco da API [1]. A própria política exige contas próprias para testes de autorização e proíbe impacto em outros usuários [2]. O safe harbor não se estende automaticamente a terceiros e requer pesquisa de boa-fé consistente com a política [3].
 
@@ -120,6 +124,8 @@ A policy deve declarar, no mínimo, que o teste usa apenas contas e recursos con
 
 A classificação não deve inferir severidade, explorabilidade além do observado, impacto em terceiros ou vulnerabilidade confirmada. `anomalous` significa apenas **candidato para revisão humana**.
 
+Quando a classificação atingir `anomalous`, o comportamento obrigatório será `candidate-stop`: o plano não agenda operações posteriores, a evidência recebe um marcador de parada e o run termina com o conjunto mínimo de observações. O sistema deve registrar a razão sanitizada da parada e impedir qualquer caminho automático de retry exploratório, escalada de privilégio, mudança de target ou submissão. O candidato só pode existir se `protectedData` ou uma ação privilegiada verificável estiver presente nas repetições exigidas; sinais cosméticos ou meramente informacionais nunca bastam.
+
 ## 8. Evidência e PoC sanitizada
 
 Cada bundle deve registrar, sem secrets:
@@ -138,6 +144,8 @@ Cada bundle deve registrar, sem secrets:
 O `controlNonce`, tokens, cookies, headers de autorização, corpos crus, PII e respostas fora do allowlist nunca podem aparecer no bundle. O writer deve falhar fechado e deixar o caminho temporário para recuperação diagnóstica quando encontrar suspeita de secret, sem imprimir o valor.
 
 Se houver `anomalous`, a evidência deve congelar o menor conjunto necessário e interromper a expansão. A validação subsequente poderá repetir somente os dois requests mínimos necessários no mesmo recurso próprio, após revisão humana. Não haverá acesso exploratório a outros repositórios, organizações ou contas.
+
+A PoC local será produzida a partir desse bundle sanitizado e poderá conter um roteiro de vídeo de tela para demonstrar: o estado inicial do laboratório sintético, a pergunta de segurança, a sequência catalogada mínima, a diferença normalizada entre atores, a parada imediata, o bundle sem secrets e a classificação como candidato. O vídeo não deve mostrar tokens, cookies, nomes exatos de contas, PII, bodies crus ou infraestrutura de terceiros. Ele serve para demonstrar o funcionamento reproduzível do AegisHub e não para afirmar severidade crítica. A gravação só poderá usar o fake server/loopback ou uma reprodução previamente aprovada no laboratório próprio; esta especificação não inicia gravação nem execução live.
 
 ## 9. Uso de IA dentro da PoC
 

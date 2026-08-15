@@ -1,7 +1,7 @@
 # Pesquisa inicial — GitHub Bug Bounty com AegisHub
 
-**Data da revisão:** 2026-08-15  
-**Estado:** reconhecimento, threat modeling e desenho preliminar; nenhuma nova operação contra GitHub foi executada nesta tarefa.  
+**Data da revisão:** 2026-08-15
+**Estado:** reconhecimento, threat modeling e desenho preliminar; nenhuma nova operação contra GitHub foi executada nesta tarefa.
 **Escopo operacional:** somente contas, repositórios e dados controlados pelo operador; qualquer hipótese nova aguarda aprovação humana e, se necessário, uma especificação de extensão do AegisHub.
 
 ## 1. Resumo executivo

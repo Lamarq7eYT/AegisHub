@@ -3,7 +3,11 @@ import { Buffer } from 'node:buffer';
 
 import {
   observationSchema,
+  REPOSITORY_LAB_MARKER_DOCUMENT,
+  REPOSITORY_LAB_MARKER_DOCUMENT_ID,
   repositoryMarkerSchema,
+  VIEWER_IDENTITY_DOCUMENT,
+  VIEWER_IDENTITY_DOCUMENT_ID,
   RunRedactor,
   type Actor,
   type AuthenticatedActor,
@@ -207,7 +211,7 @@ export class GuardedGitHubTransport {
       redirect: 'manual',
       credentials: 'omit',
       signal,
-      ...(resolved.descriptor.protocol === 'graphql' ? { body: JSON.stringify({ documentId: 'ViewerIdentityV1' }) } : {}),
+      ...(resolved.descriptor.protocol === 'graphql' ? { body: JSON.stringify(graphqlRequestBody(resolved)) } : {}),
       ...(resolved.descriptor.id === 'github.rest.contents.put-lab-marker.v1'
         ? { body: JSON.stringify({ message: resolved.parameters.message, content: resolved.parameters.content }) }
         : {}),
@@ -234,14 +238,17 @@ export class GuardedGitHubTransport {
       parsed = this.#redactor.redactText(response.body) as JsonValue;
     }
     const normalizedBody = this.#redactor.redactJson(normalizeMarkerResponse(request.step.operationId, parsed));
+    const observedStatus = response.status === 200
+      ? statusFromNormalizedGraphqlBody(request.step.operationId, response.status, normalizedBody)
+      : response.status;
     const headers: Record<string, string> = {};
     for (const name of ['content-type', 'etag', 'x-github-media-type'] as const) {
       const value = response.headers[name];
       if (value !== undefined) headers[name] = this.#redactor.redactText(value);
     }
     let errorClass: string | undefined;
-    if (response.status === 403) errorClass = 'access_denied';
-    if (response.status === 404) errorClass = 'not_found';
+    if (observedStatus === 403) errorClass = 'access_denied';
+    if (observedStatus === 404) errorClass = 'not_found';
     const candidate = {
       schemaVersion: 1,
       observationId: randomUUID(),
@@ -256,13 +263,13 @@ export class GuardedGitHubTransport {
       method: this.#methodFor(request),
       endpointTemplate,
       parameters: this.#redactor.redactJson(request.step.parameters),
-      status: response.status,
+      status: observedStatus,
       headers,
       normalizedBody,
       bodySha256,
       repeatGroup: request.step.repeatGroup ?? request.step.id,
       protectedData: hasVerifiedLabMarker(normalizedBody, this.#options.context.labId, this.#options.context.repository.id),
-      outOfLab: hasOutOfLabRepository(normalizedBody, this.#options.context.repository.id),
+      outOfLab: hasOutOfLabRepository(normalizedBody, this.#options.context.repository.id) || hasOutOfLabMarker(normalizedBody, this.#options.context.repository.id),
       policyVersion: this.#options.context.policyVersion,
       catalogVersion: this.#options.context.catalogVersion,
       ...(errorClass === undefined ? {} : { errorClass })
@@ -293,22 +300,107 @@ function hasOutOfLabRepository(body: JsonValue, repositoryId: number): boolean {
   return typeof body.repository.id === 'number' && body.repository.id !== repositoryId;
 }
 
+function hasOutOfLabMarker(body: JsonValue, repositoryId: number): boolean {
+  if (!isJsonObject(body) || !isJsonObject(body.marker)) return false;
+  return typeof body.marker.repositoryId === 'number' && body.marker.repositoryId !== repositoryId;
+}
+
 function isJsonObject(value: JsonValue | undefined): value is { readonly [key: string]: JsonValue } {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function normalizeMarkerResponse(operationId: string, body: JsonValue): JsonValue {
-  const marker = operationId === 'github.rest.contents.get-lab-marker.v1' ? decodeMarkerResponse(body) : undefined;
-  if (marker === undefined) return body;
+  if (operationId === 'github.graphql.contents.get-lab-marker.v1') return normalizeGraphqlMarkerResponse(body);
+  if (operationId !== 'github.rest.contents.get-lab-marker.v1') return body;
+  const marker = decodeMarkerResponse(body);
+  if (marker !== undefined) return markerObservationBody(marker);
+  const inlineMarker = decodeInlineMarkerResponse(body);
+  return inlineMarker === undefined ? body : { marker: inlineMarker };
+}
+
+function markerObservationBody(marker: RepositoryMarker): JsonValue {
   return {
     marker: {
       schemaVersion: marker.schemaVersion,
       labId: marker.labId,
       repositoryId: marker.repositoryId,
       ownerId: marker.ownerId
-    },
-    ...(isJsonObject(body) && typeof body.sha === 'string' ? { sha: body.sha } : {})
+    }
   };
+}
+
+function decodeInlineMarkerResponse(body: JsonValue): { schemaVersion: number; labId: string; repositoryId: number; ownerId?: number } | undefined {
+  if (!isJsonObject(body) || !isJsonObject(body.marker)) return undefined;
+  const marker = body.marker;
+  if (marker.schemaVersion !== 1 || typeof marker.labId !== 'string' || typeof marker.repositoryId !== 'number') return undefined;
+  const ownerId = typeof marker.ownerId === 'number'
+    ? marker.ownerId
+    : isJsonObject(marker.owner) && typeof marker.owner.id === 'number' ? marker.owner.id : undefined;
+  return {
+    schemaVersion: 1,
+    labId: marker.labId,
+    repositoryId: marker.repositoryId,
+    ...(ownerId === undefined ? {} : { ownerId })
+  };
+}
+
+function normalizeGraphqlMarkerResponse(body: JsonValue): JsonValue {
+  if (!isJsonObject(body)) return {};
+  const data = isJsonObject(body.data) ? body.data : undefined;
+  const marker = decodeGraphqlMarkerResponse(body);
+  const errors = Array.isArray(body.errors) && body.errors.length > 0 ? 'access_denied' : undefined;
+  return {
+    ...(data?.repository === null ? { repository: null } : {}),
+    ...(marker === undefined ? {} : {
+      marker: {
+        schemaVersion: marker.schemaVersion,
+        labId: marker.labId,
+        repositoryId: marker.repositoryId,
+        ownerId: marker.ownerId
+      }
+    }),
+    ...(errors === undefined ? {} : { errorClass: errors })
+  };
+}
+
+function decodeGraphqlMarkerResponse(body: JsonValue): RepositoryMarker | undefined {
+  if (!isJsonObject(body) || !isJsonObject(body.data) || !isJsonObject(body.data.repository)) return undefined;
+  const object = body.data.repository.object;
+  if (!isJsonObject(object) || typeof object.text !== 'string') return undefined;
+  try {
+    const parsed = repositoryMarkerSchema.safeParse(JSON.parse(object.text) as unknown);
+    return parsed.success ? parsed.data : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function graphqlRequestBody(resolved: ReturnType<typeof resolveCatalogOperation>): Record<string, JsonValue> {
+  if (resolved.descriptor.protocol !== 'graphql') throw new GuardedTransportError('transport_invalid_response');
+  const variables: Record<string, JsonValue> = {};
+  for (const key of resolved.descriptor.parameterKeys) {
+    const value = resolved.parameters[key];
+    if (value !== undefined) variables[key] = value;
+  }
+  return {
+    operationName: resolved.descriptor.documentId,
+    query: graphqlDocument(resolved.descriptor.documentId),
+    ...(Object.keys(variables).length === 0 ? {} : { variables })
+  };
+}
+
+function graphqlDocument(documentId: typeof VIEWER_IDENTITY_DOCUMENT_ID | typeof REPOSITORY_LAB_MARKER_DOCUMENT_ID): string {
+  if (documentId === VIEWER_IDENTITY_DOCUMENT_ID) return VIEWER_IDENTITY_DOCUMENT;
+  if (documentId === REPOSITORY_LAB_MARKER_DOCUMENT_ID) return REPOSITORY_LAB_MARKER_DOCUMENT;
+  throw new GuardedTransportError('transport_invalid_response');
+}
+
+function statusFromNormalizedGraphqlBody(operationId: string, status: number, body: JsonValue): number {
+  if (operationId !== 'github.graphql.contents.get-lab-marker.v1') return status;
+  if (!isJsonObject(body)) return status;
+  if (body.errorClass === 'access_denied') return 403;
+  if (body.repository === null || (!('marker' in body) && isJsonObject(body.repository) && Object.keys(body.repository).length === 0)) return 404;
+  return status;
 }
 
 function decodeMarkerResponse(body: JsonValue): RepositoryMarker | undefined {

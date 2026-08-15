@@ -209,6 +209,10 @@ export class ExperimentRunner {
             forcedReason = 'out_of_lab_resource';
             break;
           }
+          if (this.hasStrongCandidate(input, observations, cleanupStatus)) {
+            forcedReason = 'candidate_stop';
+            break;
+          }
         } catch (error) {
           forcedResult = isPolicyError(error) ? 'policy_blocked' : 'inconclusive';
           forcedReason = errorReason(error);
@@ -250,6 +254,23 @@ export class ExperimentRunner {
     if (input.plan.operations.some((operation) => isMutation(operation)) && (!input.interactiveTerminal || input.approvalGrant === undefined)) {
       throw new RunnerError('runner_approval_required');
     }
+  }
+
+  private hasStrongCandidate(
+    input: RunExperimentInput,
+    observations: readonly Observation[],
+    cleanupStatus: RunManifest['cleanupStatus']
+  ): boolean {
+    const differential = classifyRun({
+      observations: observations.map(toDifferentialObservation),
+      expectation: input.expectation,
+      policy: { allowed: true },
+      cleanupStatus,
+      independentVerification: true,
+      impact: input.impact,
+      ineligibleClasses: input.ineligibleClasses
+    });
+    return differential.state === 'anomalous' && differential.candidate !== undefined;
   }
 
   private preflight(input: RunExperimentInput, lease: ActiveRunLease): { result: 'policy_blocked' | 'inconclusive'; reason: string } | undefined {

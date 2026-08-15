@@ -45,7 +45,7 @@ function makeObservation(
     normalizedBody: body,
     bodySha256: 'a'.repeat(64),
     policyVersion: 'github-bounty-2026-08-13.1',
-    catalogVersion: '1.0.0',
+    catalogVersion: '1.1.0',
     repeatGroup,
     protectedData: options.protectedData ?? false,
     outOfLab: options.outOfLab ?? false
@@ -164,6 +164,34 @@ describe('classifyRun', () => {
     expect(result.reason).toBe('cleanup_unverified');
   });
 
+  it('does not promote a cosmetic identity or status difference to a candidate', () => {
+    const result = classifyRun(
+      baseInput([
+        makeObservation('00000000-0000-4000-8000-000000000036', 'owner', 200, { marker: 'owner' }, 'owner-marker'),
+        makeObservation('00000000-0000-4000-8000-000000000037', 'researcher', 200, { login: 'researcher-fixture' }, 'researcher-marker'),
+        makeObservation('00000000-0000-4000-8000-000000000038', 'researcher', 200, { login: 'researcher-fixture' }, 'researcher-marker'),
+        makeObservation('00000000-0000-4000-8000-000000000039', 'owner', 200, { marker: 'owner' }, 'owner-marker')
+      ])
+    );
+
+    expect(result.state).not.toBe('anomalous');
+    expect(result.candidate).toBeUndefined();
+  });
+
+  it('requires repeated protected data before producing a candidate', () => {
+    const result = classifyRun({
+      ...baseInput([
+        makeObservation('00000000-0000-4000-8000-000000000046', 'owner', 200, { marker: 'owner' }, 'owner-marker'),
+        makeObservation('00000000-0000-4000-8000-000000000047', 'researcher', 200, { schemaVersion: 1, labId: runId }, 'researcher-marker', { protectedData: true }),
+        makeObservation('00000000-0000-4000-8000-000000000048', 'owner', 200, { marker: 'owner' }, 'owner-marker')
+      ]),
+      independentVerification: true
+    });
+
+    expect(result.state).not.toBe('anomalous');
+    expect(result.candidate).toBeUndefined();
+  });
+
   it('does not promote differences limited to volatile response fields', () => {
     const result = classifyRun(
       baseInput([
@@ -236,7 +264,7 @@ describe('normalizeObservation', () => {
       },
       bodySha256: 'b'.repeat(64),
       policyVersion: 'github-bounty-2026-08-13.1',
-      catalogVersion: '1.0.0',
+      catalogVersion: '1.1.0',
       repeatGroup: 'researcher-marker',
       protectedData: false,
       outOfLab: false

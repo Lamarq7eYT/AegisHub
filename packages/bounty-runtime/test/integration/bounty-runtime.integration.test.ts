@@ -69,6 +69,58 @@ describe('bounty runtime loopback integration', () => {
     ]);
   });
 
+  it('compares REST and GraphQL boundaries in the loopback PoC without promoting cosmetic differences', async () => {
+    server = new FakeGithubServer();
+    await server.start();
+    const transport = makeTransport(server);
+    const steps: Array<[string, 'owner' | 'researcher' | 'anonymous', string, PlannedOperation['step']['operationId']]> = [
+      ['owner-rest', 'owner', 'owner-rest', 'github.rest.contents.get-lab-marker.v1'],
+      ['owner-graphql', 'owner', 'owner-graphql', 'github.graphql.contents.get-lab-marker.v1'],
+      ['researcher-rest-1', 'researcher', 'researcher-rest', 'github.rest.contents.get-lab-marker.v1'],
+      ['researcher-rest-2', 'researcher', 'researcher-rest', 'github.rest.contents.get-lab-marker.v1'],
+      ['researcher-graphql-1', 'researcher', 'researcher-graphql', 'github.graphql.contents.get-lab-marker.v1'],
+      ['researcher-graphql-2', 'researcher', 'researcher-graphql', 'github.graphql.contents.get-lab-marker.v1'],
+      ['anonymous-rest-1', 'anonymous', 'anonymous-rest', 'github.rest.contents.get-lab-marker.v1'],
+      ['anonymous-rest-2', 'anonymous', 'anonymous-rest', 'github.rest.contents.get-lab-marker.v1'],
+      ['anonymous-graphql-1', 'anonymous', 'anonymous-graphql', 'github.graphql.contents.get-lab-marker.v1'],
+      ['anonymous-graphql-2', 'anonymous', 'anonymous-graphql', 'github.graphql.contents.get-lab-marker.v1'],
+      ['owner-rest-repeat', 'owner', 'owner-rest', 'github.rest.contents.get-lab-marker.v1'],
+      ['owner-graphql-repeat', 'owner', 'owner-graphql', 'github.graphql.contents.get-lab-marker.v1']
+    ];
+    const observations: DifferentialObservation[] = [];
+    for (const [id, actor, repeatGroup, operationId] of steps) {
+      observations.push(await transport.execute(operation(id, actor, repeatGroup, operationId), new globalThis.AbortController().signal) as unknown as DifferentialObservation);
+    }
+    const result = classifyRun({ observations, expectation, policy: { allowed: true }, cleanupStatus: 'not-required', independentVerification: true, impact: { kind: 'confidentiality', summary: 'Synthetic lab-owned marker.', labOwned: true }, ineligibleClasses: [] });
+
+    expect(result.state).toBe('expected');
+    expect(result.candidate).toBeUndefined();
+    expect(observations.filter((observation) => observation.actor !== 'owner').every((observation) => !observation.protectedData)).toBe(true);
+    expect(observations.filter((observation) => observation.operationId === 'github.graphql.contents.get-lab-marker.v1')).toHaveLength(6);
+    expect(server.requests).toHaveLength(12);
+    expect(server.requests.every((request) => !JSON.stringify(request).includes('synthetic-control-nonce'))).toBe(true);
+  });
+
+  it('produces a real lab-owned candidate in loopback only when bypass discloses protected data twice', async () => {
+    server = new FakeGithubServer({ bypass: true });
+    await server.start();
+    const transport = makeTransport(server);
+    const observations = [
+      await transport.execute(operation('owner-rest', 'owner', 'owner-rest', 'github.rest.contents.get-lab-marker.v1'), new globalThis.AbortController().signal),
+      await transport.execute(operation('owner-graphql', 'owner', 'owner-graphql', 'github.graphql.contents.get-lab-marker.v1'), new globalThis.AbortController().signal),
+      await transport.execute(operation('researcher-rest-1', 'researcher', 'researcher-rest', 'github.rest.contents.get-lab-marker.v1'), new globalThis.AbortController().signal),
+      await transport.execute(operation('researcher-rest-2', 'researcher', 'researcher-rest', 'github.rest.contents.get-lab-marker.v1'), new globalThis.AbortController().signal),
+      await transport.execute(operation('owner-rest-repeat', 'owner', 'owner-rest', 'github.rest.contents.get-lab-marker.v1'), new globalThis.AbortController().signal),
+      await transport.execute(operation('owner-graphql-repeat', 'owner', 'owner-graphql', 'github.graphql.contents.get-lab-marker.v1'), new globalThis.AbortController().signal)
+    ] as DifferentialObservation[];
+    const result = classifyRun({ observations, expectation, policy: { allowed: true }, cleanupStatus: 'not-required', independentVerification: true, impact: { kind: 'confidentiality', summary: 'Synthetic lab-owned marker was disclosed to an untrusted actor.', labOwned: true }, ineligibleClasses: [] });
+
+    expect(result.state).toBe('anomalous');
+    expect(result.candidate).toMatchObject({ reproductionCount: 2, knownIneligible: false, cleanupStatus: 'complete' });
+    expect(result.candidate?.impact.summary).toContain('Synthetic lab-owned marker');
+    expect(server.requests).toHaveLength(6);
+  });
+
   it('persists, verifies and exports the sanitized expected run bundle', async () => {
     server = new FakeGithubServer();
     await server.start();

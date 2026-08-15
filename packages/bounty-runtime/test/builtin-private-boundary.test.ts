@@ -35,6 +35,20 @@ describe('bundled private contents boundary experiment', () => {
     expect(experiment.steps.every((step) => step.parameters.owner && typeof step.parameters.owner === 'object' && 'ref' in step.parameters.owner)).toBe(true);
   });
 
+  it('loads the local REST/GraphQL authorization consistency experiment with no mutation or arbitrary query', async () => {
+    const loader = new ExperimentLoader({ workspaceRoot: '/tmp/aegishub-builtin-fixture', runtimeRoot });
+    const loaded = await loader.loadBuiltIn('repo.private.rest-graphql-authorization.v1');
+    const experiment = loaded.experiment;
+
+    expect(experiment.id).toBe('repo.private.rest-graphql-authorization.v1');
+    expect(experiment.budgets.maxRequests).toBe(12);
+    expect(experiment.budgets.maxMutations).toBe(0);
+    expect(experiment.steps).toHaveLength(12);
+    expect(experiment.steps.filter((step) => step.operationId === 'github.graphql.contents.get-lab-marker.v1')).toHaveLength(6);
+    expect(experiment.steps.every((step) => !('query' in step.parameters))).toBe(true);
+    expect(experiment.steps.every((step) => step.parameters.owner && typeof step.parameters.owner === 'object' && 'ref' in step.parameters.owner)).toBe(true);
+  });
+
   it('keeps identical parsed documents stable and changes approval fingerprints after semantic edits', async () => {
     const workspace = await mkdtemp('/tmp/aegishub-builtin-fingerprint-');
     const directory = join(workspace, '.aegishub', 'experiments');

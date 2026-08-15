@@ -62,10 +62,14 @@ export function resolveCatalogOperation(input: ResolveCatalogOperationInput): Re
   } catch {
     throw new CatalogRuntimeError('catalog_invalid_parameters');
   }
-  if (descriptor.protocol === 'rest' && descriptor.parameterKeys.includes('owner')) {
+  if (descriptor.parameterKeys.includes('owner')) {
     try {
-      const url = renderRestUrl(input.operationId, parameters);
-      const expected = `${url.pathname.split('/')[2]}/${url.pathname.split('/')[3]}`;
+      const expected = descriptor.protocol === 'rest'
+        ? (() => {
+          const url = renderRestUrl(input.operationId, parameters);
+          return `${url.pathname.split('/')[2]}/${url.pathname.split('/')[3]}`;
+        })()
+        : `${parameters.owner}/${parameters.repo}`;
       if (decodeURIComponent(expected) !== input.context.repository.fullName) {
         throw new CatalogRuntimeError('catalog_repository_mismatch');
       }

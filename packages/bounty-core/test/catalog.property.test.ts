@@ -38,7 +38,8 @@ describe('operation catalog', () => {
     const visible = Object.values(OPERATION_CATALOG).filter((descriptor) => descriptor.purpose.includes('experiment'));
     expect(visible.map(({ id }) => id)).toEqual([
       'github.rest.repos.get.v1',
-      'github.rest.contents.get-lab-marker.v1'
+      'github.rest.contents.get-lab-marker.v1',
+      'github.graphql.contents.get-lab-marker.v1'
     ]);
     expect(visible.every(({ purpose }) => !purpose.includes('identity') || purpose.includes('experiment'))).toBe(true);
     expect(Object.values(OPERATION_CATALOG).some(({ purpose }) => purpose.includes('cleanup') && !purpose.includes('experiment'))).toBe(true);
@@ -48,6 +49,17 @@ describe('operation catalog', () => {
     const descriptor = getOperationDescriptor('github.graphql.viewer-identity.v1');
     expect(descriptor.protocol).toBe('graphql');
     expect(descriptor).toMatchObject({ documentId: 'ViewerIdentityV1' });
+    expect('query' in descriptor).toBe(false);
+  });
+
+  it('exposes only the fixed GraphQL lab-marker document and typed repository parameters', () => {
+    const descriptor = getOperationDescriptor('github.graphql.contents.get-lab-marker.v1');
+    expect(descriptor).toMatchObject({
+      protocol: 'graphql',
+      documentId: 'RepositoryLabMarkerV1',
+      pathTemplate: '/graphql',
+      parameterKeys: ['owner', 'repo']
+    });
     expect('query' in descriptor).toBe(false);
   });
 
@@ -61,7 +73,7 @@ describe('operation catalog', () => {
       }
     } satisfies Readonly<Record<CatalogOperationId, OperationDescriptor>>;
     expect(original).not.toBe(catalogFingerprint(changed));
-    expect(CATALOG_VERSION).toBe('1.0.0');
+    expect(CATALOG_VERSION).toBe('1.1.0');
   });
 
   it('rejects unknown operation IDs and parameter fields', () => {

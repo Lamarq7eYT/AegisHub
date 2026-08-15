@@ -188,3 +188,13 @@ pnpm --filter @aegishub/bounty-core build
 The user approved the design of Hypothesis 1: read-only comparison of private-marker authorization between fixed REST and GraphQL interfaces on the operator-owned lab repository, using owner, researcher, and anonymous perspectives. No new login, live request, mutation, repository change, or disclosure was performed.
 
 The specification is recorded in `docs/superpowers/specs/2026-08-15-bounty-mode-phase2-rest-graphql-authorization.md`. It preserves the Phase 1 ceilings and safety constraints: fixed catalog and host, typed manifest references, no arbitrary GraphQL query or URL, no mutation, maximum 12 requests, concurrency 1, bounded retries, sanitized evidence, human review for `anomalous`, and no automatic AI execution or HackerOne submission. The next gate is a separate approval to implement the specification with TDD; live execution remains prohibited until implementation, local gates, policy review, and an explicit user-present execution plan are approved.
+
+## Continuation update — Phase 2 local PoC implemented
+
+The approved local Phase 2 extension is implemented on top of the Phase 1 branch. It adds the fixed `github.graphql.contents.get-lab-marker.v1` catalog operation, checked-in `RepositoryLabMarkerV1` document, strict owner/repository parameter validation, cross-interface marker normalization, GraphQL denial mapping, and candidate-stop in `ExperimentRunner`.
+
+The candidate threshold is intentionally high. Cosmetic identity, status, header, timing, rate-limit, or metadata differences cannot produce a candidate. A candidate requires repeated protected marker disclosure or another verified lab-owned confidentiality/integrity impact. The runner stops after the strong candidate is established and does not execute the follow-up operation.
+
+The local PoC uses only the loopback `FakeGithubServer`. The safe mode returned `expected` with 5 requests, 0 mutations, 0 protected untrusted observations, and no candidate. The synthetic bypass mode returned `anomalous` with reason `candidate_stop`, 4 requests, 0 mutations, 2 repeated protected untrusted observations, candidate reproduction count 2, and the follow-up GraphQL operation not executed. This is a synthetic fixture validation, not a GitHub vulnerability or severity claim.
+
+Sanitized artifacts are under `artifacts/phase2-local-poc/`, including `summary.json`, `report.md`, and `aegishub-phase2-local-poc-demo.mp4`. The demo is loopback-only and explicitly states no real GitHub request, no real credential, no third-party data, no severity claim, and no live execution. Any future GitHub live run requires a separate explicit approval after review of the local implementation and artifacts.

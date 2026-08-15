@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { sha256StableJson } from './stable-json.js';
 import type { Actor, JsonValue } from './contracts.js';
 
-export const CATALOG_VERSION = '1.0.0' as const;
+export const CATALOG_VERSION = '1.1.0' as const;
 export const VIEWER_IDENTITY_DOCUMENT_ID = 'ViewerIdentityV1' as const;
 export const VIEWER_IDENTITY_DOCUMENT = `query ViewerIdentityV1 {
   viewer {
@@ -12,10 +12,23 @@ export const VIEWER_IDENTITY_DOCUMENT = `query ViewerIdentityV1 {
     login
   }
 }` as const;
+export const REPOSITORY_LAB_MARKER_DOCUMENT_ID = 'RepositoryLabMarkerV1' as const;
+export const REPOSITORY_LAB_MARKER_DOCUMENT = `query RepositoryLabMarkerV1($owner: String!, $repo: String!) {
+  repository(owner: $owner, name: $repo) {
+    databaseId
+    isPrivate
+    object(expression: "HEAD:.aegishub-lab.json") {
+      ... on Blob {
+        text
+      }
+    }
+  }
+}` as const;
 
 type OperationId =
   | 'github.rest.users.get-authenticated.v1'
   | 'github.graphql.viewer-identity.v1'
+  | 'github.graphql.contents.get-lab-marker.v1'
   | 'github.rest.repos.get.v1'
   | 'github.rest.contents.get-lab-marker.v1'
   | 'github.rest.contents.put-lab-marker.v1'
@@ -54,7 +67,7 @@ export interface GraphqlOperationDescriptor extends OperationDescriptorBase {
   readonly protocol: 'graphql';
   readonly method: 'POST';
   readonly pathTemplate: '/graphql';
-  readonly documentId: typeof VIEWER_IDENTITY_DOCUMENT_ID;
+  readonly documentId: typeof VIEWER_IDENTITY_DOCUMENT_ID | typeof REPOSITORY_LAB_MARKER_DOCUMENT_ID;
 }
 
 export type OperationDescriptor = RestOperationDescriptor | GraphqlOperationDescriptor;
@@ -81,6 +94,7 @@ const parameterSchemas: Readonly<Record<OperationId, z.ZodType<Record<string, Js
   'github.graphql.viewer-identity.v1': emptyParametersSchema,
   'github.rest.repos.get.v1': repositoryParametersSchema,
   'github.rest.contents.get-lab-marker.v1': repositoryParametersSchema,
+  'github.graphql.contents.get-lab-marker.v1': repositoryParametersSchema,
   'github.rest.contents.put-lab-marker.v1': markerPutParametersSchema,
   'github.rest.contents.delete-lab-marker.v1': markerDeleteParametersSchema
 };
@@ -149,6 +163,23 @@ const descriptors: Record<OperationId, OperationDescriptor> = {
     normalizationProfile: 'marker-read-v1',
     retainedResponseHeaders: ['content-type', 'etag', 'x-github-media-type'],
     retainedFields: ['sha', 'marker'],
+    parameterKeys: ['owner', 'repo']
+  },
+  'github.graphql.contents.get-lab-marker.v1': {
+    id: 'github.graphql.contents.get-lab-marker.v1',
+    version: 1,
+    protocol: 'graphql',
+    method: 'POST',
+    pathTemplate: '/graphql',
+    documentId: REPOSITORY_LAB_MARKER_DOCUMENT_ID,
+    purpose: ['experiment'],
+    classification: 'read',
+    allowedActors: allActors,
+    permission: 'contents:read',
+    retry: 'safe-read',
+    normalizationProfile: 'marker-read-v1',
+    retainedResponseHeaders: ['content-type', 'etag', 'x-github-media-type'],
+    retainedFields: ['repository.databaseId', 'repository.isPrivate', 'repository.object.text'],
     parameterKeys: ['owner', 'repo']
   },
   'github.rest.contents.put-lab-marker.v1': {

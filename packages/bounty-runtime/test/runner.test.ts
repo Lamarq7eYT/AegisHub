@@ -173,6 +173,30 @@ describe('ExperimentRunner', () => {
     expect(completed.cleanupStatus).toBe('not-required');
   });
 
+  it('stops immediately after a repeated real boundary crossing and does not run follow-up operations', async () => {
+    const store = new LabStore(await mkdtemp(join(tmpdir(), 'aegishub-runner-')));
+    const operations = [
+      operation(1, 'baseline', 'owner', 'github.rest.get-repository', { stepId: 'owner-baseline' }),
+      operation(2, 'probe', 'researcher', 'github.rest.get-repository', { stepId: 'researcher-probe-1' }),
+      operation(3, 'repeat', 'researcher', 'github.rest.get-repository', { stepId: 'researcher-probe-2' }),
+      operation(4, 'repeat', 'owner', 'github.rest.get-repository', { stepId: 'owner-repeat' }),
+      operation(5, 'verify', 'owner', 'github.rest.get-repository', { stepId: 'must-not-run' })
+    ];
+    const executor = new ScriptedExecutor((op) => observation(
+      op,
+      op.actor,
+      op.actor === 'owner' ? 200 : 200,
+      op.actor === 'owner' ? { marker: 'owner' } : { schemaVersion: 1, labId },
+      { protectedData: op.actor === 'researcher' }
+    ));
+
+    const completed = await new ExperimentRunner().run(baseInput(store, plan(operations), executor));
+
+    expect(executor.calls.map((call) => call.stepId)).toEqual(['owner-baseline', 'researcher-probe-1', 'researcher-probe-2', 'owner-repeat']);
+    expect(completed.manifest.result).toBe('anomalous');
+    expect(completed.candidate).toMatchObject({ reproductionCount: 2, knownIneligible: false });
+  });
+
   it('does not reach transport for a mutation without interactive approval', async () => {
     const store = new LabStore(await mkdtemp(join(tmpdir(), 'aegishub-runner-')));
     const mutation = operation(1, 'setup', 'owner', 'github.rest.put-lab-marker');

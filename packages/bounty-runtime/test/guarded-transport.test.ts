@@ -147,6 +147,77 @@ describe('GuardedGitHubTransport', () => {
     });
   });
 
+  it('sends the fixed GraphQL lab-marker document without accepting query text', async () => {
+    const graphqlPlan: PlannedOperation = {
+      ...plan,
+      step: {
+        ...plan.step,
+        operationId: 'github.graphql.contents.get-lab-marker.v1' as never,
+        parameters: { owner: 'owner-fixture', repo: 'lab-fixture' }
+      }
+    };
+    const executor = makeExecutor([response(200, { data: { repository: null } })]);
+    const transport = makeTransport(executor);
+
+    await expect(transport.execute(graphqlPlan, new globalThis.AbortController().signal)).resolves.toMatchObject({ method: 'POST' });
+    expect(executor.requests[0]?.url.toString()).toBe('https://api.github.com/graphql');
+    expect(JSON.parse(executor.requests[0]?.body ?? '{}')).toMatchObject({
+      operationName: 'RepositoryLabMarkerV1',
+      variables: { owner: 'owner-fixture', repo: 'lab-fixture' }
+    });
+    expect(JSON.parse(executor.requests[0]?.body ?? '{}').query).toContain('query RepositoryLabMarkerV1');
+    expect(JSON.stringify(graphqlPlan.step.parameters)).not.toContain('query');
+  });
+
+  it('normalizes a GraphQL lab marker without retaining the control nonce', async () => {
+    const marker = { schemaVersion: 1, labId: plan.labId, repositoryId: 3003, ownerId: 1001, controlNonce: 'synthetic-control-nonce-123456' };
+    const graphqlPlan: PlannedOperation = {
+      ...plan,
+      step: {
+        ...plan.step,
+        operationId: 'github.graphql.contents.get-lab-marker.v1' as never,
+        parameters: { owner: 'owner-fixture', repo: 'lab-fixture' }
+      }
+    };
+    const executor = makeExecutor([response(200, {
+      data: {
+        repository: {
+          databaseId: 3003,
+          isPrivate: true,
+          object: { text: JSON.stringify(marker) }
+        }
+      }
+    })]);
+    const transport = makeTransport(executor);
+
+    const observation = await transport.execute(graphqlPlan, new globalThis.AbortController().signal);
+
+    expect(observation.status).toBe(200);
+    expect(observation.protectedData).toBe(true);
+    expect(observation.normalizedBody).toMatchObject({ marker: { labId: plan.labId, repositoryId: 3003 } });
+    expect(JSON.stringify(observation)).not.toContain('synthetic-control-nonce');
+  });
+
+  it('maps a GraphQL null private repository to a denied observation without protected data', async () => {
+    const graphqlPlan: PlannedOperation = {
+      ...plan,
+      step: {
+        ...plan.step,
+        operationId: 'github.graphql.contents.get-lab-marker.v1' as never,
+        actor: 'researcher',
+        parameters: { owner: 'owner-fixture', repo: 'lab-fixture' }
+      }
+    };
+    const executor = makeExecutor([response(200, { data: { repository: null } })]);
+    const transport = makeTransport(executor);
+
+    const observation = await transport.execute(graphqlPlan, new globalThis.AbortController().signal);
+
+    expect(observation.status).toBe(404);
+    expect(observation.errorClass).toBe('not_found');
+    expect(observation.protectedData).toBe(false);
+  });
+
   it('normalizes a real GitHub Contents base64 marker before protected-data detection', async () => {
     const marker = { schemaVersion: 1, labId: plan.labId, repositoryId: 3003, ownerId: 1001, controlNonce: 'synthetic-control-nonce-123456' };
     const encoded = Buffer.from(JSON.stringify(marker), 'utf8').toString('base64');

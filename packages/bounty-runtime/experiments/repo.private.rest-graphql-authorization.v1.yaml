@@ -1,0 +1,166 @@
+schemaVersion: 1
+id: repo.private.rest-graphql-authorization.v1
+version: 1
+title: Private marker authorization consistency across REST and GraphQL
+researchQuestion: Do REST and GraphQL enforce the same private lab marker boundary for untrusted actors?
+expectedBoundary: Only the verified owner can read the protected lab marker through either fixed interface.
+scopeTarget: github.com
+ineligibleChecks:
+  - no-third-party-target
+  - no-user-repository-vulnerability-claim
+  - no-availability-impact
+  - no-timing-or-enumeration
+  - no-cosmetic-difference
+requiredCapabilities:
+  - private-repository
+actorRelationships:
+  - distinct-authenticated-users
+  - researcher-has-no-repository-access
+budgets:
+  concurrency: 1
+  requestsPerSecond: 1
+  burst: 2
+  maxRequests: 12
+  maxMutations: 0
+  timeoutMs: 20000
+  maxReadRetries: 2
+  maxMutationRetries: 0
+steps:
+  - id: owner-rest-baseline
+    phase: baseline
+    actor: owner
+    operationId: github.rest.contents.get-lab-marker.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: owner-rest
+  - id: owner-graphql-baseline
+    phase: baseline
+    actor: owner
+    operationId: github.graphql.contents.get-lab-marker.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: owner-graphql
+  - id: researcher-rest-probe-1
+    phase: probe
+    actor: researcher
+    operationId: github.rest.contents.get-lab-marker.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: researcher-rest
+  - id: researcher-rest-probe-2
+    phase: probe
+    actor: researcher
+    operationId: github.rest.contents.get-lab-marker.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: researcher-rest
+  - id: researcher-graphql-probe-1
+    phase: probe
+    actor: researcher
+    operationId: github.graphql.contents.get-lab-marker.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: researcher-graphql
+  - id: researcher-graphql-probe-2
+    phase: probe
+    actor: researcher
+    operationId: github.graphql.contents.get-lab-marker.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: researcher-graphql
+  - id: anonymous-rest-probe-1
+    phase: probe
+    actor: anonymous
+    operationId: github.rest.contents.get-lab-marker.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: anonymous-rest
+  - id: anonymous-rest-probe-2
+    phase: probe
+    actor: anonymous
+    operationId: github.rest.contents.get-lab-marker.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: anonymous-rest
+  - id: anonymous-graphql-probe-1
+    phase: probe
+    actor: anonymous
+    operationId: github.graphql.contents.get-lab-marker.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: anonymous-graphql
+  - id: anonymous-graphql-probe-2
+    phase: probe
+    actor: anonymous
+    operationId: github.graphql.contents.get-lab-marker.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: anonymous-graphql
+  - id: owner-rest-repeat
+    phase: repeat
+    actor: owner
+    operationId: github.rest.contents.get-lab-marker.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: owner-rest
+  - id: owner-graphql-repeat
+    phase: repeat
+    actor: owner
+    operationId: github.graphql.contents.get-lab-marker.v1
+    params:
+      owner:
+        ref: lab.repository.owner
+      repo:
+        ref: lab.repository.name
+    repeatGroup: owner-graphql
+expectation:
+  kind: access-boundary
+  ownerSuccessStatuses:
+    - 200
+  untrustedDeniedStatuses:
+    - 403
+    - 404
+  protectedFields:
+    - marker.schemaVersion
+    - marker.labId
+    - marker.repositoryId
+    - marker.owner.id
+  requireOwnerRepeat: true
+  minimumConsistentUntrustedAttempts: 2
+normalizationProfile: github-private-marker-v1
+expectedSafeOutcome: Owner receives the same protected marker through both fixed interfaces while untrusted actors receive no protected marker fields.
+anomalyCondition: The same untrusted actor receives protected marker data through one fixed interface in at least two consistent attempts.
+purpose: Local-only Phase 2 authorization consistency PoC; candidate-stop applies before any follow-up operation.

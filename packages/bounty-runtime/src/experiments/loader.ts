@@ -49,7 +49,7 @@ export class ExperimentLoader {
     this.#runtimeRoot = resolve(options.runtimeRoot);
   }
 
-  async loadBuiltIn(id: 'repo.private.contents-read-boundary.v1'): Promise<LoadedExperiment> {
+  async loadBuiltIn(id: 'repo.private.contents-read-boundary.v1' | 'repo.private.rest-graphql-authorization.v1'): Promise<LoadedExperiment> {
     return this.load(join(this.#runtimeRoot, 'experiments', `${id}.yaml`));
   }
 
